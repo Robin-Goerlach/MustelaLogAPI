@@ -1,0 +1,25 @@
+<Window x:Class="MustelaLog.Client.Wpf.Views.DiagnosticsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Client Diagnostics"
+        Width="1000"
+        Height="600"
+        WindowStartupLocation="CenterOwner">
+    <DockPanel>
+        <ToolBar DockPanel.Dock="Top">
+            <Button Content="Copy" Click="Copy_Click" />
+            <Button Content="Clear" Click="Clear_Click" />
+            <Button Content="Toggle Pause" Click="Pause_Click" />
+        </ToolBar>
+
+        <DataGrid AutoGenerateColumns="False" IsReadOnly="True" ItemsSource="{Binding Entries}">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="Timestamp (UTC)" Binding="{Binding TimestampUtc}" Width="180" />
+                <DataGridTextColumn Header="Level" Binding="{Binding Level}" Width="100" />
+                <DataGridTextColumn Header="Message" Binding="{Binding Message}" Width="300" />
+                <DataGridTextColumn Header="Context" Binding="{Binding ContextText}" Width="*" />
+                <DataGridTextColumn Header="Exception" Binding="{Binding ExceptionText}" Width="*" />
+            </DataGrid.Columns>
+        </DataGrid>
+    </DockPanel>
+</Window>

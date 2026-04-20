@@ -1,0 +1,22 @@
+{
+  "Api": {
+    "BaseUrl": "http://127.0.0.1:8080/index.php",
+    "ApiVersion": "v1",
+    "TechnicalAccessToken": "CHANGE_ME",
+    "TimeoutSeconds": 30,
+    "DefaultPageSize": 100
+  },
+  "Diagnostics": {
+    "Enabled": true,
+    "MinimumLevel": "Information",
+    "FilePath": "%LocalAppData%\\MustelaLogClient\\logs\\client.log",
+    "MaxFileSizeBytes": 1048576,
+    "MaxRetainedFiles": 5,
+    "InMemoryBufferSize": 500
+  },
+  "Ui": {
+    "DefaultTimeMode": "Local",
+    "AutoRefreshEnabled": false,
+    "AutoRefreshSeconds": 30
+  }
+}

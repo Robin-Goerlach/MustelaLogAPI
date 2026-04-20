@@ -1,0 +1,67 @@
+## OS
+.DS_Store
+Thumbs.db
+
+## IDE / Editor
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.vs/
+bin/
+obj/
+
+## Composer
+/vendor/
+#/composer.lock
+
+## Environment / secrets
+.env
+.env.*
+!.env.example
+
+## Runtime
+/logs/
+/tmp/
+/cache/
+/storage/*.log
+/storage/cache/
+/storage/tmp/
+
+## Test / coverage
+/phpunit.xml
+/phpunit.xml.dist.local
+/coverage/
+/.clover.xml
+
+## phpDocumentor output
+/docs/
+/build/docs/
+/phpdoc/
+
+## Static analysis / tooling
+/.php-cs-fixer.cache
+/.phpunit.result.cache
+/.phpstan.cache
+
+## Node (only if later used for tooling)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+## Archives
+*.zip
+*.tar
+*.tar.gz
+
+## Database dumps
+*.sql
+*.sql.gz
+*.dump
+
+## Local overrides
+/config/local.php
+/config/*.local.php

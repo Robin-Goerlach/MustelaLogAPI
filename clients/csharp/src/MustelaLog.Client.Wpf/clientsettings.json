@@ -1,6 +1,6 @@
 {
   "Api": {
-    "BaseUrl": "http://127.0.0.1:8080/index.php",
+    "BaseUrl": "http://api.sasd.de/logger/index.php",
     "ApiVersion": "v1",
     "TechnicalAccessToken": "CHANGE_ME",
     "TimeoutSeconds": 30,

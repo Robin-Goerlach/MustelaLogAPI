@@ -3,340 +3,475 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:vm="clr-namespace:MustelaLog.Client.Wpf.ViewModels"
+        xmlns:conv="clr-namespace:MustelaLog.Client.Wpf.Converters"
         mc:Ignorable="d"
-        Title="{Binding WindowTitle}"
-        Width="1680"
-        Height="980"
+        Title="Mustela Log Client"
+        Height="900"
+        Width="1500"
+        MinHeight="700"
+        MinWidth="1100"
         WindowStartupLocation="CenterScreen">
-    <DockPanel>
-        <ToolBarTray DockPanel.Dock="Top">
-            <ToolBar>
-                <Button Content="Refresh" Click="Refresh_Click" />
-                <Separator />
-                <Button Content="Send test log event" Click="SendTestLog_Click" />
-                <Button Content="Open diagnostics" Click="OpenDiagnostics_Click" />
-                <Separator />
-                <Button Content="Export CSV" Click="ExportCsv_Click" />
-                <Button Content="Export JSON" Click="ExportJson_Click" />
-                <Separator />
-                <TextBlock VerticalAlignment="Center" Margin="6,0,4,0" Text="Time mode:" />
-                <ComboBox Width="100" SelectionChanged="TimeModeCombo_SelectionChanged">
-                    <ComboBoxItem IsSelected="True">Local</ComboBoxItem>
-                    <ComboBoxItem>Utc</ComboBoxItem>
-                </ComboBox>
-                <Separator />
-                <TextBlock VerticalAlignment="Center" Margin="6,0,4,0" Text="Saved view:" />
-                <ComboBox Width="180" ItemsSource="{Binding SavedViews}" DisplayMemberPath="Name" SelectedValuePath="Name" SelectedValue="{Binding SelectedSavedViewName, UpdateSourceTrigger=PropertyChanged}" />
-                <TextBox Width="160" Margin="6,0,0,0" Text="{Binding SavedViewEditName, UpdateSourceTrigger=PropertyChanged}" />
-                <Button Content="Save" Click="SaveView_Click" />
-                <Button Content="Load" Click="LoadView_Click" />
-                <Button Content="Rename" Click="RenameView_Click" />
-                <Button Content="Delete" Click="DeleteView_Click" />
-            </ToolBar>
-        </ToolBarTray>
 
+    <Window.Resources>
+        <!--
+            Register the converter locally in the window to make sure the DataGrid cell style
+            can always resolve it, even if application-wide resources are not loaded as expected.
+        -->
+        <conv:SeverityBrushConverter x:Key="SeverityBrushConverter" />
+
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+
+        <Style x:Key="SectionHeaderTextBlockStyle" TargetType="TextBlock">
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="Margin" Value="0,0,0,8" />
+        </Style>
+
+        <Style x:Key="FilterLabelStyle" TargetType="TextBlock">
+            <Setter Property="Margin" Value="0,0,0,4" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+
+        <Style x:Key="FilterControlStyle" TargetType="Control">
+            <Setter Property="Margin" Value="0,0,0,10" />
+        </Style>
+
+        <Style x:Key="MainDataGridStyle" TargetType="DataGrid">
+            <Setter Property="AutoGenerateColumns" Value="False" />
+            <Setter Property="CanUserAddRows" Value="False" />
+            <Setter Property="CanUserDeleteRows" Value="False" />
+            <Setter Property="CanUserReorderColumns" Value="True" />
+            <Setter Property="CanUserResizeColumns" Value="True" />
+            <Setter Property="CanUserSortColumns" Value="True" />
+            <Setter Property="IsReadOnly" Value="True" />
+            <Setter Property="SelectionMode" Value="Single" />
+            <Setter Property="SelectionUnit" Value="FullRow" />
+            <Setter Property="Margin" Value="0" />
+            <Setter Property="RowHeaderWidth" Value="0" />
+            <Setter Property="GridLinesVisibility" Value="Horizontal" />
+            <Setter Property="HeadersVisibility" Value="Column" />
+            <Setter Property="AlternatingRowBackground" Value="#FFF8F8F8" />
+            <Setter Property="HorizontalGridLinesBrush" Value="#FFE5E5E5" />
+            <Setter Property="VerticalGridLinesBrush" Value="#FFE5E5E5" />
+        </Style>
+
+        <Style TargetType="DataGridCell">
+            <Setter Property="Padding" Value="6,4,6,4" />
+            <Setter Property="Foreground" Value="{Binding Severity, Converter={StaticResource SeverityBrushConverter}}" />
+        </Style>
+
+        <Style x:Key="ReadOnlyTextBoxStyle" TargetType="TextBox">
+            <Setter Property="Margin" Value="0,0,0,8" />
+            <Setter Property="Padding" Value="6,4,6,4" />
+            <Setter Property="IsReadOnly" Value="True" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="VerticalScrollBarVisibility" Value="Auto" />
+            <Setter Property="HorizontalScrollBarVisibility" Value="Auto" />
+        </Style>
+    </Window.Resources>
+
+    <DockPanel>
+        <!-- Top toolbar -->
+        <Border DockPanel.Dock="Top"
+                Background="#FFF3F3F3"
+                BorderBrush="#FFDADADA"
+                BorderThickness="0,0,0,1"
+                Padding="10">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button Content="Refresh"
+                            Width="90"
+                            Margin="0,0,8,0"
+                            Command="{Binding RefreshCommand}" />
+
+                    <Button Content="Send Test Log"
+                            Width="120"
+                            Margin="0,0,8,0"
+                            Command="{Binding SendTestLogCommand}" />
+
+                    <Button Content="Export CSV"
+                            Width="100"
+                            Margin="0,0,8,0"
+                            Command="{Binding ExportCsvCommand}" />
+
+                    <Button Content="Export JSON"
+                            Width="100"
+                            Margin="0,0,8,0"
+                            Command="{Binding ExportJsonCommand}" />
+
+                    <Button Content="Related Events"
+                            Width="120"
+                            Margin="0,0,8,0"
+                            Command="{Binding LoadRelatedEventsCommand}" />
+
+                    <Button Content="Diagnostics"
+                            Width="100"
+                            Command="{Binding ShowDiagnosticsCommand}" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="1"
+                            Orientation="Horizontal"
+                            VerticalAlignment="Center">
+                    <TextBlock Text="Time Mode:"
+                               VerticalAlignment="Center"
+                               Margin="0,0,6,0" />
+                    <ComboBox Width="110"
+                              SelectedItem="{Binding SelectedTimeDisplayMode}">
+                        <ComboBoxItem Content="Local" />
+                        <ComboBoxItem Content="Utc" />
+                    </ComboBox>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Status bar -->
         <StatusBar DockPanel.Dock="Bottom">
-            <StatusBarItem Content="{Binding ConnectionStatus}" />
+            <StatusBarItem>
+                <TextBlock Text="{Binding ConnectionStatus}" />
+            </StatusBarItem>
             <Separator />
-            <StatusBarItem Content="{Binding StatusMessage}" />
+            <StatusBarItem>
+                <TextBlock Text="{Binding LastRefreshText}" />
+            </StatusBarItem>
             <Separator />
-            <StatusBarItem Content="{Binding LastRefreshText, StringFormat=Last refresh: {0}}" />
+            <StatusBarItem>
+                <TextBlock Text="{Binding ResponseTimeText}" />
+            </StatusBarItem>
             <Separator />
-            <StatusBarItem Content="{Binding LastResponseText, StringFormat=Last response: {0}}" />
-            <Separator />
-            <StatusBarItem Content="{Binding TimeModeLabel, StringFormat=Time mode: {0}}" />
+            <StatusBarItem>
+                <TextBlock Text="{Binding ActiveTimeModeText}" />
+            </StatusBarItem>
         </StatusBar>
 
+        <!-- Main content -->
         <Grid>
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="310" />
+                <ColumnDefinition Width="320" />
                 <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="450" />
+                <ColumnDefinition Width="420" />
             </Grid.ColumnDefinitions>
-            <Grid.RowDefinitions>
-                <RowDefinition Height="*" />
-                <RowDefinition Height="300" />
-            </Grid.RowDefinitions>
 
-            <Border Grid.Column="0" Grid.RowSpan="2" Margin="8" Padding="8" BorderBrush="#DDDDDD" BorderThickness="1" CornerRadius="6">
+            <!-- Filter panel -->
+            <Border Grid.Column="0"
+                    BorderBrush="#FFE0E0E0"
+                    BorderThickness="0,0,1,0"
+                    Padding="12"
+                    Background="#FFFAFAFA">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel>
-                        <TextBlock FontSize="18" FontWeight="SemiBold" Text="Filters" Margin="0,0,0,12" />
-                        <TextBlock Text="Quick range" />
-                        <DockPanel Margin="0,4,0,8">
-                            <ComboBox Width="180" ItemsSource="{Binding QuickRanges}" SelectedItem="{Binding SelectedQuickRange, UpdateSourceTrigger=PropertyChanged}" />
-                            <Button Content="Apply" Margin="8,0,0,0" Click="ApplyQuickRange_Click" />
-                        </DockPanel>
+                        <TextBlock Text="Filters" Style="{StaticResource SectionHeaderTextBlockStyle}" />
 
-                        <TextBlock Text="From" />
-                        <DatePicker SelectedDate="{Binding FromDateLocal, UpdateSourceTrigger=PropertyChanged}" />
-                        <TextBlock Margin="0,8,0,0" Text="To" />
-                        <DatePicker SelectedDate="{Binding ToDateLocal, UpdateSourceTrigger=PropertyChanged}" />
-                        <TextBlock Margin="0,12,0,0" Text="Source" />
-                        <TextBox Text="{Binding SourceKeyFilter, UpdateSourceTrigger=PropertyChanged}" />
-                        <TextBlock Margin="0,8,0,0" Text="Hostname" />
-                        <TextBox Text="{Binding HostnameFilter, UpdateSourceTrigger=PropertyChanged}" />
-                        <TextBlock Margin="0,8,0,0" Text="Service" />
-                        <TextBox Text="{Binding ServiceFilter, UpdateSourceTrigger=PropertyChanged}" />
-                        <TextBlock Margin="0,8,0,0" Text="Severity" />
-                        <TextBox Text="{Binding SeverityFilter, UpdateSourceTrigger=PropertyChanged}" />
-                        <TextBlock Margin="0,8,0,0" Text="Category" />
-                        <TextBox Text="{Binding CategoryFilter, UpdateSourceTrigger=PropertyChanged}" />
-                        <TextBlock Margin="0,8,0,0" Text="Action" />
-                        <TextBox Text="{Binding ActionFilter, UpdateSourceTrigger=PropertyChanged}" />
-                        <TextBlock Margin="0,8,0,0" Text="Outcome" />
-                        <TextBox Text="{Binding OutcomeFilter, UpdateSourceTrigger=PropertyChanged}" />
-                        <TextBlock Margin="0,8,0,0" Text="Text search" />
-                        <TextBox Text="{Binding TextSearchFilter, UpdateSourceTrigger=PropertyChanged}" />
-                        <TextBlock Margin="0,8,0,0" Text="Correlation ID" />
-                        <TextBox Text="{Binding CorrelationFilter, UpdateSourceTrigger=PropertyChanged}" />
-                        <TextBlock Margin="0,8,0,0" Text="Trace ID" />
-                        <TextBox Text="{Binding TraceFilter, UpdateSourceTrigger=PropertyChanged}" />
-                        <TextBlock Margin="0,8,0,0" Text="Request ID" />
-                        <TextBox Text="{Binding RequestFilter, UpdateSourceTrigger=PropertyChanged}" />
-                        <TextBlock Margin="0,8,0,0" Text="Component" />
-                        <TextBox Text="{Binding ComponentFilter, UpdateSourceTrigger=PropertyChanged}" />
-                        <TextBlock Margin="0,8,0,0" Text="Actor User ID" />
-                        <TextBox Text="{Binding ActorUserFilter, UpdateSourceTrigger=PropertyChanged}" />
-                        <TextBlock Margin="0,8,0,0" Text="Actor Principal" />
-                        <TextBox Text="{Binding ActorPrincipalFilter, UpdateSourceTrigger=PropertyChanged}" />
-                        <TextBlock Margin="0,8,0,0" Text="Session Hash" />
-                        <TextBox Text="{Binding SessionFilter, UpdateSourceTrigger=PropertyChanged}" />
-                        <TextBlock Margin="0,8,0,0" Text="Client IP" />
-                        <TextBox Text="{Binding ClientIpFilter, UpdateSourceTrigger=PropertyChanged}" />
-                        <TextBlock Margin="0,8,0,0" Text="Server IP" />
-                        <TextBox Text="{Binding ServerIpFilter, UpdateSourceTrigger=PropertyChanged}" />
-                        <CheckBox Margin="0,10,0,0" IsChecked="{Binding OnlyWithPayload}" Content="Only events with payload" />
-                        <CheckBox Margin="0,4,0,0" IsChecked="{Binding OnlyWithCorrelation}" Content="Only events with correlation / trace" />
-                        <CheckBox Margin="0,4,0,0" IsChecked="{Binding OnlyWithActor}" Content="Only events with actor" />
-                        <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
-                            <Button Content="Apply Filters" Click="Refresh_Click" />
-                            <Button Content="Clear" Margin="8,0,0,0" Click="ClearFilters_Click" />
+                        <TextBlock Text="Quick time range" Style="{StaticResource FilterLabelStyle}" />
+                        <ComboBox SelectedItem="{Binding SelectedQuickRange}" Margin="0,0,0,10">
+                            <ComboBoxItem Content="Last 5 minutes" />
+                            <ComboBoxItem Content="Last 15 minutes" />
+                            <ComboBoxItem Content="Last hour" />
+                            <ComboBoxItem Content="Today" />
+                            <ComboBoxItem Content="Last 24 hours" />
+                            <ComboBoxItem Content="Last 7 days" />
+                            <ComboBoxItem Content="Custom" />
+                        </ComboBox>
+
+                        <TextBlock Text="From" Style="{StaticResource FilterLabelStyle}" />
+                        <DatePicker SelectedDate="{Binding FilterFromDate}" Margin="0,0,0,10" />
+
+                        <TextBlock Text="To" Style="{StaticResource FilterLabelStyle}" />
+                        <DatePicker SelectedDate="{Binding FilterToDate}" Margin="0,0,0,10" />
+
+                        <TextBlock Text="Source" Style="{StaticResource FilterLabelStyle}" />
+                        <TextBox Text="{Binding FilterSource}" Margin="0,0,0,10" />
+
+                        <TextBlock Text="Host" Style="{StaticResource FilterLabelStyle}" />
+                        <TextBox Text="{Binding FilterHost}" Margin="0,0,0,10" />
+
+                        <TextBlock Text="Service" Style="{StaticResource FilterLabelStyle}" />
+                        <TextBox Text="{Binding FilterService}" Margin="0,0,0,10" />
+
+                        <TextBlock Text="Severity" Style="{StaticResource FilterLabelStyle}" />
+                        <TextBox Text="{Binding FilterSeverity}" Margin="0,0,0,10" />
+
+                        <TextBlock Text="Category" Style="{StaticResource FilterLabelStyle}" />
+                        <TextBox Text="{Binding FilterCategory}" Margin="0,0,0,10" />
+
+                        <TextBlock Text="Action" Style="{StaticResource FilterLabelStyle}" />
+                        <TextBox Text="{Binding FilterAction}" Margin="0,0,0,10" />
+
+                        <TextBlock Text="Outcome" Style="{StaticResource FilterLabelStyle}" />
+                        <TextBox Text="{Binding FilterOutcome}" Margin="0,0,0,10" />
+
+                        <TextBlock Text="Correlation ID" Style="{StaticResource FilterLabelStyle}" />
+                        <TextBox Text="{Binding FilterCorrelationId}" Margin="0,0,0,10" />
+
+                        <TextBlock Text="Trace ID" Style="{StaticResource FilterLabelStyle}" />
+                        <TextBox Text="{Binding FilterTraceId}" Margin="0,0,0,10" />
+
+                        <TextBlock Text="Request ID" Style="{StaticResource FilterLabelStyle}" />
+                        <TextBox Text="{Binding FilterRequestId}" Margin="0,0,0,10" />
+
+                        <TextBlock Text="Full-text search" Style="{StaticResource FilterLabelStyle}" />
+                        <TextBox Text="{Binding FilterSearchText}" Margin="0,0,0,10" />
+
+                        <CheckBox Content="Only events with payload"
+                                  IsChecked="{Binding FilterOnlyWithPayload}"
+                                  Margin="0,0,0,8" />
+
+                        <CheckBox Content="Only events with correlation ID"
+                                  IsChecked="{Binding FilterOnlyWithCorrelationId}"
+                                  Margin="0,0,0,8" />
+
+                        <CheckBox Content="Only events with actor"
+                                  IsChecked="{Binding FilterOnlyWithActor}"
+                                  Margin="0,0,0,12" />
+
+                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                            <Button Content="Apply"
+                                    Width="90"
+                                    Margin="0,0,8,0"
+                                    Command="{Binding ApplyFiltersCommand}" />
+                            <Button Content="Clear"
+                                    Width="90"
+                                    Command="{Binding ClearFiltersCommand}" />
                         </StackPanel>
-                        <TextBlock FontWeight="SemiBold" Margin="0,14,0,6" Text="Active filters" />
-                        <ItemsControl ItemsSource="{Binding ActiveFilterChips}">
-                            <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <Border Margin="0,0,6,6" Padding="6,3" CornerRadius="10" Background="#EEF5FF" BorderBrush="#D7E8FF" BorderThickness="1">
-                                        <TextBlock Text="{Binding}" />
-                                    </Border>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                        <TextBlock FontWeight="SemiBold" Margin="0,14,0,6" Text="Visible columns" />
-                        <ItemsControl ItemsSource="{Binding ColumnOptions}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate DataType="{x:Type vm:ColumnOptionViewModel}">
-                                    <CheckBox Content="{Binding DisplayName}" IsChecked="{Binding IsVisible}" Margin="0,2,0,2" />
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
+
+                        <Separator Margin="0,16,0,16" />
+
+                        <TextBlock Text="Saved Views" Style="{StaticResource SectionHeaderTextBlockStyle}" />
+
+                        <ListBox ItemsSource="{Binding SavedViews}"
+                                 SelectedItem="{Binding SelectedSavedView}"
+                                 DisplayMemberPath="Name"
+                                 Height="150"
+                                 Margin="0,0,0,10" />
+
+                        <StackPanel Orientation="Horizontal">
+                            <Button Content="Save Current"
+                                    Width="100"
+                                    Margin="0,0,8,0"
+                                    Command="{Binding SaveCurrentViewCommand}" />
+                            <Button Content="Load"
+                                    Width="70"
+                                    Margin="0,0,8,0"
+                                    Command="{Binding LoadSavedViewCommand}" />
+                            <Button Content="Delete"
+                                    Width="70"
+                                    Command="{Binding DeleteSavedViewCommand}" />
+                        </StackPanel>
                     </StackPanel>
                 </ScrollViewer>
             </Border>
 
-            <Grid Grid.Column="1" Grid.Row="0" Margin="8,8,4,4">
+            <!-- Center content -->
+            <Grid Grid.Column="1">
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
-                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="220" />
                 </Grid.RowDefinitions>
-                <TextBlock Grid.Row="0" FontSize="18" FontWeight="SemiBold" Text="Events" Margin="0,0,0,8" />
-                <DataGrid x:Name="EventsDataGrid" Grid.Row="1" AutoGenerateColumns="False" CanUserResizeColumns="True" CanUserSortColumns="True" IsReadOnly="True" SelectionMode="Single" SelectionUnit="FullRow" SelectionChanged="EventsDataGrid_SelectionChanged" Sorting="EventsDataGrid_Sorting" ItemsSource="{Binding EventRows}" SelectedItem="{Binding SelectedEvent, Mode=TwoWay}">
+
+                <!-- Log table -->
+                <DataGrid Grid.Row="0"
+                          Style="{StaticResource MainDataGridStyle}"
+                          ItemsSource="{Binding LogEvents}"
+                          SelectedItem="{Binding SelectedLogEvent, Mode=TwoWay}">
                     <DataGrid.Columns>
-                        <DataGridTextColumn x:Name="OccurredAtColumn" Header="Occurred At" Binding="{Binding OccurredAtDisplay}" SortMemberPath="occurredAt" Width="150" />
-                        <DataGridTextColumn x:Name="IngestedAtColumn" Header="Ingested At" Binding="{Binding IngestedAtDisplay}" SortMemberPath="occurredAt" Width="150" />
-                        <DataGridTextColumn x:Name="SeverityColumn" Header="Severity" Binding="{Binding Severity}" SortMemberPath="severityNumber" Width="100" />
-                        <DataGridTextColumn x:Name="SourceColumn" Header="Source / Host" Binding="{Binding SourceOrHost}" SortMemberPath="sourceKey" Width="180" />
-                        <DataGridTextColumn x:Name="ServiceColumn" Header="Service" Binding="{Binding Service}" Width="140" />
-                        <DataGridTextColumn x:Name="CategoryColumn" Header="Category" Binding="{Binding EventCategory}" Width="120" />
-                        <DataGridTextColumn x:Name="ActionColumn" Header="Action" Binding="{Binding EventAction}" Width="130" />
-                        <DataGridTextColumn x:Name="OutcomeColumn" Header="Outcome" Binding="{Binding EventOutcome}" Width="100" />
-                        <DataGridTextColumn x:Name="MessageColumn" Header="Message" Binding="{Binding MessagePreview}" Width="300" />
-                        <DataGridTextColumn x:Name="CorrelationColumn" Header="Correlation / Trace" Binding="{Binding CorrelationOrTracePreview}" Width="150" />
-                        <DataGridTextColumn x:Name="EventIdColumn" Header="Event ID" Binding="{Binding EventId}" Width="190" />
+                        <DataGridTextColumn Header="Occurred At" Binding="{Binding OccurredAtDisplay}" Width="160" />
+                        <DataGridTextColumn Header="Ingested At" Binding="{Binding IngestedAtDisplay}" Width="160" />
+                        <DataGridTextColumn Header="Severity" Binding="{Binding Severity}" Width="90" />
+                        <DataGridTextColumn Header="Source" Binding="{Binding SourceName}" Width="140" />
+                        <DataGridTextColumn Header="Host" Binding="{Binding HostName}" Width="140" />
+                        <DataGridTextColumn Header="Service" Binding="{Binding ServiceName}" Width="140" />
+                        <DataGridTextColumn Header="Category" Binding="{Binding EventCategory}" Width="130" />
+                        <DataGridTextColumn Header="Action" Binding="{Binding EventAction}" Width="120" />
+                        <DataGridTextColumn Header="Outcome" Binding="{Binding EventOutcome}" Width="100" />
+                        <DataGridTextColumn Header="Message" Binding="{Binding Message}" Width="*" />
+                        <DataGridTextColumn Header="Correlation" Binding="{Binding CorrelationIdShort}" Width="140" />
                     </DataGrid.Columns>
-                    <DataGrid.CellStyle>
-                        <Style TargetType="DataGridCell">
-                            <Setter Property="Foreground" Value="{Binding Severity, Converter={StaticResource SeverityBrushConverter}}" />
-                        </Style>
-                    </DataGrid.CellStyle>
                 </DataGrid>
-                <DockPanel Grid.Row="2" Margin="0,8,0,0">
-                    <TextBlock VerticalAlignment="Center" Text="{Binding PageSummary}" />
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" DockPanel.Dock="Right">
-                        <Button Content="Previous" Click="PreviousPage_Click" Margin="0,0,6,0" />
-                        <Button Content="Next" Click="NextPage_Click" />
-                    </StackPanel>
-                </DockPanel>
+
+                <!-- Aggregation / chart placeholder -->
+                <Border Grid.Row="1"
+                        BorderBrush="#FFE0E0E0"
+                        BorderThickness="0,1,0,0"
+                        Padding="12">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Text="Aggregations"
+                                   Style="{StaticResource SectionHeaderTextBlockStyle}" />
+
+                        <TabControl Grid.Row="1">
+                            <TabItem Header="Severity">
+                                <DataGrid ItemsSource="{Binding SeverityAggregationRows}"
+                                          AutoGenerateColumns="False"
+                                          IsReadOnly="True"
+                                          CanUserAddRows="False"
+                                          CanUserDeleteRows="False">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="Severity" Binding="{Binding Key}" Width="*" />
+                                        <DataGridTextColumn Header="Count" Binding="{Binding Count}" Width="120" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </TabItem>
+
+                            <TabItem Header="Sources">
+                                <DataGrid ItemsSource="{Binding SourceAggregationRows}"
+                                          AutoGenerateColumns="False"
+                                          IsReadOnly="True"
+                                          CanUserAddRows="False"
+                                          CanUserDeleteRows="False">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="Source" Binding="{Binding Key}" Width="*" />
+                                        <DataGridTextColumn Header="Count" Binding="{Binding Count}" Width="120" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </TabItem>
+
+                            <TabItem Header="Time">
+                                <DataGrid ItemsSource="{Binding TimeAggregationRows}"
+                                          AutoGenerateColumns="False"
+                                          IsReadOnly="True"
+                                          CanUserAddRows="False"
+                                          CanUserDeleteRows="False">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="Time Bucket" Binding="{Binding Key}" Width="*" />
+                                        <DataGridTextColumn Header="Count" Binding="{Binding Count}" Width="120" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </TabItem>
+                        </TabControl>
+                    </Grid>
+                </Border>
             </Grid>
 
-            <Border Grid.Column="2" Grid.Row="0" Margin="4,8,8,4" Padding="8" BorderBrush="#DDDDDD" BorderThickness="1" CornerRadius="6">
+            <!-- Detail panel -->
+            <Border Grid.Column="2"
+                    BorderBrush="#FFE0E0E0"
+                    BorderThickness="1,0,0,0"
+                    Padding="12"
+                    Background="White">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel>
-                        <TextBlock FontSize="18" FontWeight="SemiBold" Text="Event Details" Margin="0,0,0,8" />
-                        <TextBlock FontWeight="SemiBold" Text="General" />
-                        <Grid Margin="0,4,0,8">
-                            <Grid.ColumnDefinitions><ColumnDefinition Width="130" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
-                            <TextBlock Grid.Row="0" Text="Event ID:" FontWeight="SemiBold" /><TextBox Grid.Row="0" Grid.Column="1" Text="{Binding SelectedEvent.Record.LogEventId}" IsReadOnly="True" />
-                            <TextBlock Grid.Row="1" Text="Occurred At:" FontWeight="SemiBold" /><TextBox Grid.Row="1" Grid.Column="1" Text="{Binding SelectedEvent.OccurredAtDisplay}" IsReadOnly="True" />
-                            <TextBlock Grid.Row="2" Text="Observed At:" FontWeight="SemiBold" /><TextBox Grid.Row="2" Grid.Column="1" Text="{Binding SelectedEvent.ObservedAtDisplay}" IsReadOnly="True" />
-                            <TextBlock Grid.Row="3" Text="Received At:" FontWeight="SemiBold" /><TextBox Grid.Row="3" Grid.Column="1" Text="{Binding SelectedEvent.ReceivedAtDisplay}" IsReadOnly="True" />
-                            <TextBlock Grid.Row="4" Text="Ingested At:" FontWeight="SemiBold" /><TextBox Grid.Row="4" Grid.Column="1" Text="{Binding SelectedEvent.IngestedAtDisplay}" IsReadOnly="True" />
-                            <TextBlock Grid.Row="5" Text="Severity:" FontWeight="SemiBold" /><TextBox Grid.Row="5" Grid.Column="1" Text="{Binding SelectedEvent.Record.SeverityText}" IsReadOnly="True" />
-                            <TextBlock Grid.Row="6" Text="Event Name:" FontWeight="SemiBold" /><TextBox Grid.Row="6" Grid.Column="1" Text="{Binding SelectedEvent.Record.EventName}" IsReadOnly="True" />
-                            <TextBlock Grid.Row="7" Text="Category / Action / Outcome:" FontWeight="SemiBold" /><TextBox Grid.Row="7" Grid.Column="1" Text="{Binding SelectedEvent.Record.EventCategory}" IsReadOnly="True" />
-                        </Grid>
-                        <TextBlock FontWeight="SemiBold" Text="Source" />
-                        <Grid Margin="0,4,0,8">
-                            <Grid.ColumnDefinitions><ColumnDefinition Width="130" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
-                            <TextBlock Grid.Row="0" Text="Source Name:" FontWeight="SemiBold" /><TextBox Grid.Row="0" Grid.Column="1" Text="{Binding SelectedEvent.Record.SourceName}" IsReadOnly="True" />
-                            <TextBlock Grid.Row="1" Text="Source Key:" FontWeight="SemiBold" /><TextBox Grid.Row="1" Grid.Column="1" Text="{Binding SelectedEvent.Record.SourceKey}" IsReadOnly="True" />
-                            <TextBlock Grid.Row="2" Text="Host:" FontWeight="SemiBold" /><TextBox Grid.Row="2" Grid.Column="1" Text="{Binding SelectedEvent.Record.HostName}" IsReadOnly="True" />
-                            <TextBlock Grid.Row="3" Text="Service:" FontWeight="SemiBold" /><TextBox Grid.Row="3" Grid.Column="1" Text="{Binding SelectedEvent.Record.ServiceName}" IsReadOnly="True" />
-                            <TextBlock Grid.Row="4" Text="Component:" FontWeight="SemiBold" /><TextBox Grid.Row="4" Grid.Column="1" Text="{Binding SelectedEvent.Record.ComponentName}" IsReadOnly="True" />
-                            <TextBlock Grid.Row="5" Text="Version / Env:" FontWeight="SemiBold" /><TextBox Grid.Row="5" Grid.Column="1" Text="{Binding SelectedSourceVersion}" IsReadOnly="True" />
-                        </Grid>
-                        <TextBlock FontWeight="SemiBold" Text="Actor / Context" />
-                        <Grid Margin="0,4,0,8">
-                            <Grid.ColumnDefinitions><ColumnDefinition Width="130" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
-                            <TextBlock Grid.Row="0" Text="Actor User:" FontWeight="SemiBold" /><TextBox Grid.Row="0" Grid.Column="1" Text="{Binding SelectedEvent.Record.ActorUserId}" IsReadOnly="True" />
-                            <TextBlock Grid.Row="1" Text="Principal:" FontWeight="SemiBold" /><TextBox Grid.Row="1" Grid.Column="1" Text="{Binding SelectedEvent.Record.ActorPrincipal}" IsReadOnly="True" />
-                            <TextBlock Grid.Row="2" Text="Session Hash:" FontWeight="SemiBold" /><TextBox Grid.Row="2" Grid.Column="1" Text="{Binding SelectedEvent.Record.SessionHashSha256}" IsReadOnly="True" />
-                            <TextBlock Grid.Row="3" Text="Client IP:" FontWeight="SemiBold" /><TextBox Grid.Row="3" Grid.Column="1" Text="{Binding SelectedEvent.Record.ClientIp}" IsReadOnly="True" />
-                            <TextBlock Grid.Row="4" Text="Server IP:" FontWeight="SemiBold" /><TextBox Grid.Row="4" Grid.Column="1" Text="{Binding SelectedEvent.Record.ServerIp}" IsReadOnly="True" />
-                        </Grid>
-                        <TextBlock FontWeight="SemiBold" Text="Correlation" />
-                        <Grid Margin="0,4,0,8">
-                            <Grid.ColumnDefinitions><ColumnDefinition Width="130" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
-                            <TextBlock Grid.Row="0" Text="Trace ID:" FontWeight="SemiBold" /><TextBox Grid.Row="0" Grid.Column="1" Text="{Binding SelectedEvent.Record.TraceId}" IsReadOnly="True" />
-                            <TextBlock Grid.Row="1" Text="Correlation ID:" FontWeight="SemiBold" /><TextBox Grid.Row="1" Grid.Column="1" Text="{Binding SelectedEvent.Record.CorrelationId}" IsReadOnly="True" />
-                            <TextBlock Grid.Row="2" Text="Request ID:" FontWeight="SemiBold" /><TextBox Grid.Row="2" Grid.Column="1" Text="{Binding SelectedEvent.Record.RequestCorrelationId}" IsReadOnly="True" />
-                        </Grid>
-                        <TextBlock FontWeight="SemiBold" Text="Message / JSON" />
-                        <TextBlock Margin="0,4,0,0" Text="Message" FontWeight="SemiBold" />
-                        <TextBox Text="{Binding SelectedEvent.Record.MessageText}" IsReadOnly="True" TextWrapping="Wrap" AcceptsReturn="True" Height="60" />
-                        <TextBlock Margin="0,8,0,0" Text="Attributes JSON" FontWeight="SemiBold" />
-                        <TextBox Text="{Binding SelectedEventPrettyAttributes}" IsReadOnly="True" FontFamily="Consolas" TextWrapping="Wrap" AcceptsReturn="True" Height="100" VerticalScrollBarVisibility="Auto" />
-                        <TextBlock Margin="0,8,0,0" Text="Raw Payload JSON" FontWeight="SemiBold" />
-                        <TextBox Text="{Binding SelectedEventPrettyPayload}" IsReadOnly="True" FontFamily="Consolas" TextWrapping="Wrap" AcceptsReturn="True" Height="100" VerticalScrollBarVisibility="Auto" />
-                        <TextBlock FontWeight="SemiBold" Margin="0,8,0,0" Text="Governance / Integrity" />
-                        <Grid Margin="0,4,0,8">
-                            <Grid.ColumnDefinitions><ColumnDefinition Width="130" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
-                            <TextBlock Grid.Row="0" Text="Classification:" FontWeight="SemiBold" /><TextBox Grid.Row="0" Grid.Column="1" Text="{Binding SelectedEvent.Record.ClassificationCode}" IsReadOnly="True" />
-                            <TextBlock Grid.Row="1" Text="Retention:" FontWeight="SemiBold" /><TextBox Grid.Row="1" Grid.Column="1" Text="{Binding SelectedEvent.Record.RetentionPolicyCode}" IsReadOnly="True" />
-                            <TextBlock Grid.Row="2" Text="Legal Hold:" FontWeight="SemiBold" /><TextBox Grid.Row="2" Grid.Column="1" Text="{Binding SelectedEvent.Record.LegalHoldFlag}" IsReadOnly="True" />
-                            <TextBlock Grid.Row="3" Text="Hash / Chain:" FontWeight="SemiBold" /><TextBox Grid.Row="3" Grid.Column="1" Text="{Binding SelectedEvent.Record.CanonicalHashSha256}" IsReadOnly="True" />
-                        </Grid>
-                        <WrapPanel Margin="0,10,0,0">
-                            <Button Content="Copy Event ID" Click="CopyEventId_Click" Margin="0,0,6,6" />
-                            <Button Content="Copy Message" Click="CopyMessage_Click" Margin="0,0,6,6" />
-                            <Button Content="Copy JSON" Click="CopyJson_Click" Margin="0,0,6,6" />
-                            <Button Content="Copy Correlation ID" Click="CopyCorrelation_Click" Margin="0,0,6,6" />
-                            <Button Content="Copy Trace ID" Click="CopyTrace_Click" Margin="0,0,6,6" />
-                        </WrapPanel>
+                        <TextBlock Text="Details" Style="{StaticResource SectionHeaderTextBlockStyle}" />
+
+                        <Expander Header="General" IsExpanded="True">
+                            <StackPanel Margin="8">
+                                <TextBlock Text="Event ID" Style="{StaticResource FilterLabelStyle}" />
+                                <TextBox Style="{StaticResource ReadOnlyTextBoxStyle}" Text="{Binding SelectedLogEvent.EventId}" />
+
+                                <TextBlock Text="Occurred At" Style="{StaticResource FilterLabelStyle}" />
+                                <TextBox Style="{StaticResource ReadOnlyTextBoxStyle}" Text="{Binding SelectedLogEvent.OccurredAtDisplay}" />
+
+                                <TextBlock Text="Observed At" Style="{StaticResource FilterLabelStyle}" />
+                                <TextBox Style="{StaticResource ReadOnlyTextBoxStyle}" Text="{Binding SelectedLogEvent.ObservedAtDisplay}" />
+
+                                <TextBlock Text="Received At" Style="{StaticResource FilterLabelStyle}" />
+                                <TextBox Style="{StaticResource ReadOnlyTextBoxStyle}" Text="{Binding SelectedLogEvent.ReceivedAtDisplay}" />
+
+                                <TextBlock Text="Ingested At" Style="{StaticResource FilterLabelStyle}" />
+                                <TextBox Style="{StaticResource ReadOnlyTextBoxStyle}" Text="{Binding SelectedLogEvent.IngestedAtDisplay}" />
+
+                                <TextBlock Text="Severity" Style="{StaticResource FilterLabelStyle}" />
+                                <TextBox Style="{StaticResource ReadOnlyTextBoxStyle}" Text="{Binding SelectedLogEvent.Severity}" />
+
+                                <TextBlock Text="Event Name" Style="{StaticResource FilterLabelStyle}" />
+                                <TextBox Style="{StaticResource ReadOnlyTextBoxStyle}" Text="{Binding SelectedLogEvent.EventName}" />
+
+                                <TextBlock Text="Category" Style="{StaticResource FilterLabelStyle}" />
+                                <TextBox Style="{StaticResource ReadOnlyTextBoxStyle}" Text="{Binding SelectedLogEvent.EventCategory}" />
+
+                                <TextBlock Text="Action" Style="{StaticResource FilterLabelStyle}" />
+                                <TextBox Style="{StaticResource ReadOnlyTextBoxStyle}" Text="{Binding SelectedLogEvent.EventAction}" />
+
+                                <TextBlock Text="Outcome" Style="{StaticResource FilterLabelStyle}" />
+                                <TextBox Style="{StaticResource ReadOnlyTextBoxStyle}" Text="{Binding SelectedLogEvent.EventOutcome}" />
+                            </StackPanel>
+                        </Expander>
+
+                        <Expander Header="Source" IsExpanded="False">
+                            <StackPanel Margin="8">
+                                <TextBlock Text="Source Name" Style="{StaticResource FilterLabelStyle}" />
+                                <TextBox Style="{StaticResource ReadOnlyTextBoxStyle}" Text="{Binding SelectedLogEvent.SourceName}" />
+
+                                <TextBlock Text="Source Key" Style="{StaticResource FilterLabelStyle}" />
+                                <TextBox Style="{StaticResource ReadOnlyTextBoxStyle}" Text="{Binding SelectedLogEvent.SourceKey}" />
+
+                                <TextBlock Text="Host" Style="{StaticResource FilterLabelStyle}" />
+                                <TextBox Style="{StaticResource ReadOnlyTextBoxStyle}" Text="{Binding SelectedLogEvent.HostName}" />
+
+                                <TextBlock Text="Service" Style="{StaticResource FilterLabelStyle}" />
+                                <TextBox Style="{StaticResource ReadOnlyTextBoxStyle}" Text="{Binding SelectedLogEvent.ServiceName}" />
+
+                                <TextBlock Text="Component" Style="{StaticResource FilterLabelStyle}" />
+                                <TextBox Style="{StaticResource ReadOnlyTextBoxStyle}" Text="{Binding SelectedLogEvent.ComponentName}" />
+
+                                <TextBlock Text="Environment" Style="{StaticResource FilterLabelStyle}" />
+                                <TextBox Style="{StaticResource ReadOnlyTextBoxStyle}" Text="{Binding SelectedLogEvent.Environment}" />
+                            </StackPanel>
+                        </Expander>
+
+                        <Expander Header="Correlation" IsExpanded="False">
+                            <StackPanel Margin="8">
+                                <TextBlock Text="Trace ID" Style="{StaticResource FilterLabelStyle}" />
+                                <TextBox Style="{StaticResource ReadOnlyTextBoxStyle}" Text="{Binding SelectedLogEvent.TraceId}" />
+
+                                <TextBlock Text="Span ID" Style="{StaticResource FilterLabelStyle}" />
+                                <TextBox Style="{StaticResource ReadOnlyTextBoxStyle}" Text="{Binding SelectedLogEvent.SpanId}" />
+
+                                <TextBlock Text="Correlation ID" Style="{StaticResource FilterLabelStyle}" />
+                                <TextBox Style="{StaticResource ReadOnlyTextBoxStyle}" Text="{Binding SelectedLogEvent.CorrelationId}" />
+
+                                <TextBlock Text="Request ID" Style="{StaticResource FilterLabelStyle}" />
+                                <TextBox Style="{StaticResource ReadOnlyTextBoxStyle}" Text="{Binding SelectedLogEvent.RequestId}" />
+                            </StackPanel>
+                        </Expander>
+
+                        <Expander Header="Message / Payload" IsExpanded="True">
+                            <StackPanel Margin="8">
+                                <TextBlock Text="Message" Style="{StaticResource FilterLabelStyle}" />
+                                <TextBox Style="{StaticResource ReadOnlyTextBoxStyle}"
+                                         MinHeight="80"
+                                         Text="{Binding SelectedLogEvent.Message}" />
+
+                                <TextBlock Text="Attributes JSON" Style="{StaticResource FilterLabelStyle}" />
+                                <TextBox Style="{StaticResource ReadOnlyTextBoxStyle}"
+                                         MinHeight="140"
+                                         Text="{Binding SelectedLogEvent.AttributesJsonFormatted}" />
+
+                                <TextBlock Text="Raw Payload JSON" Style="{StaticResource FilterLabelStyle}" />
+                                <TextBox Style="{StaticResource ReadOnlyTextBoxStyle}"
+                                         MinHeight="140"
+                                         Text="{Binding SelectedLogEvent.RawPayloadJsonFormatted}" />
+                            </StackPanel>
+                        </Expander>
+
+                        <Expander Header="Governance / Integrity" IsExpanded="False">
+                            <StackPanel Margin="8">
+                                <TextBlock Text="Classification" Style="{StaticResource FilterLabelStyle}" />
+                                <TextBox Style="{StaticResource ReadOnlyTextBoxStyle}" Text="{Binding SelectedLogEvent.Classification}" />
+
+                                <TextBlock Text="Retention Policy" Style="{StaticResource FilterLabelStyle}" />
+                                <TextBox Style="{StaticResource ReadOnlyTextBoxStyle}" Text="{Binding SelectedLogEvent.RetentionPolicy}" />
+
+                                <TextBlock Text="Legal Hold" Style="{StaticResource FilterLabelStyle}" />
+                                <TextBox Style="{StaticResource ReadOnlyTextBoxStyle}" Text="{Binding SelectedLogEvent.LegalHold}" />
+
+                                <TextBlock Text="Canonical Hash" Style="{StaticResource FilterLabelStyle}" />
+                                <TextBox Style="{StaticResource ReadOnlyTextBoxStyle}" Text="{Binding SelectedLogEvent.CanonicalHash}" />
+
+                                <TextBlock Text="Previous Hash" Style="{StaticResource FilterLabelStyle}" />
+                                <TextBox Style="{StaticResource ReadOnlyTextBoxStyle}" Text="{Binding SelectedLogEvent.PreviousHash}" />
+                            </StackPanel>
+                        </Expander>
                     </StackPanel>
                 </ScrollViewer>
             </Border>
-
-            <TabControl Grid.Column="1" Grid.ColumnSpan="2" Grid.Row="1" Margin="8,4,8,8">
-                <TabItem Header="Related Events">
-                    <Grid Margin="8">
-                        <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
-                        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                            <Button Content="By Correlation ID" Click="RelatedCorrelation_Click" Margin="0,0,6,0" />
-                            <Button Content="By Trace ID" Click="RelatedTrace_Click" Margin="0,0,6,0" />
-                            <Button Content="By Request ID" Click="RelatedRequest_Click" Margin="0,0,6,0" />
-                            <Button Content="By Source" Click="RelatedSource_Click" Margin="0,0,6,0" />
-                            <Button Content="By Session" Click="RelatedSession_Click" Margin="0,0,6,0" />
-                            <Button Content="By Actor" Click="RelatedActor_Click" />
-                        </StackPanel>
-                        <Grid Grid.Row="1">
-                            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
-                            <TextBlock Text="{Binding RelatedEventsTitle}" FontWeight="SemiBold" Margin="0,0,0,6" />
-                            <DataGrid Grid.Row="1" AutoGenerateColumns="False" IsReadOnly="True" ItemsSource="{Binding RelatedEventRows}">
-                                <DataGrid.Columns>
-                                    <DataGridTextColumn Header="Occurred At" Binding="{Binding OccurredAtDisplay}" Width="150" />
-                                    <DataGridTextColumn Header="Severity" Binding="{Binding Severity}" Width="100" />
-                                    <DataGridTextColumn Header="Source / Host" Binding="{Binding SourceOrHost}" Width="180" />
-                                    <DataGridTextColumn Header="Service" Binding="{Binding Service}" Width="140" />
-                                    <DataGridTextColumn Header="Message" Binding="{Binding MessagePreview}" Width="350" />
-                                </DataGrid.Columns>
-                            </DataGrid>
-                        </Grid>
-                    </Grid>
-                </TabItem>
-
-                <TabItem Header="Aggregations">
-                    <Grid Margin="8">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                        <Grid.RowDefinitions><RowDefinition Height="*" /><RowDefinition Height="*" /></Grid.RowDefinitions>
-                        <GroupBox Grid.Column="0" Grid.Row="0" Header="By Severity" Margin="4">
-                            <DataGrid AutoGenerateColumns="False" IsReadOnly="True" ItemsSource="{Binding SeverityAggregation}">
-                                <DataGrid.Columns>
-                                    <DataGridTextColumn Header="Severity" Binding="{Binding Key}" Width="*" />
-                                    <DataGridTextColumn Header="Count" Binding="{Binding Count}" Width="80" />
-                                </DataGrid.Columns>
-                            </DataGrid>
-                        </GroupBox>
-                        <GroupBox Grid.Column="1" Grid.Row="0" Header="By Source / Host" Margin="4">
-                            <DataGrid AutoGenerateColumns="False" IsReadOnly="True" ItemsSource="{Binding SourceAggregation}">
-                                <DataGrid.Columns>
-                                    <DataGridTextColumn Header="Source / Host" Binding="{Binding Key}" Width="*" />
-                                    <DataGridTextColumn Header="Count" Binding="{Binding Count}" Width="80" />
-                                </DataGrid.Columns>
-                            </DataGrid>
-                        </GroupBox>
-                        <GroupBox Grid.Column="2" Grid.Row="0" Header="By Service" Margin="4">
-                            <DataGrid AutoGenerateColumns="False" IsReadOnly="True" ItemsSource="{Binding ServiceAggregation}">
-                                <DataGrid.Columns>
-                                    <DataGridTextColumn Header="Service" Binding="{Binding Key}" Width="*" />
-                                    <DataGridTextColumn Header="Count" Binding="{Binding Count}" Width="80" />
-                                </DataGrid.Columns>
-                            </DataGrid>
-                        </GroupBox>
-                        <GroupBox Grid.Column="0" Grid.Row="1" Header="By Category" Margin="4">
-                            <DataGrid AutoGenerateColumns="False" IsReadOnly="True" ItemsSource="{Binding CategoryAggregation}">
-                                <DataGrid.Columns>
-                                    <DataGridTextColumn Header="Category" Binding="{Binding Key}" Width="*" />
-                                    <DataGridTextColumn Header="Count" Binding="{Binding Count}" Width="80" />
-                                </DataGrid.Columns>
-                            </DataGrid>
-                        </GroupBox>
-                        <GroupBox Grid.Column="1" Grid.Row="1" Header="By Outcome" Margin="4">
-                            <DataGrid AutoGenerateColumns="False" IsReadOnly="True" ItemsSource="{Binding OutcomeAggregation}">
-                                <DataGrid.Columns>
-                                    <DataGridTextColumn Header="Outcome" Binding="{Binding Key}" Width="*" />
-                                    <DataGridTextColumn Header="Count" Binding="{Binding Count}" Width="80" />
-                                </DataGrid.Columns>
-                            </DataGrid>
-                        </GroupBox>
-                        <GroupBox Grid.Column="2" Grid.Row="1" Header="Over Time (current page)" Margin="4">
-                            <StackPanel>
-                                <ItemsControl ItemsSource="{Binding TimeAggregation}">
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate>
-                                            <DockPanel Margin="0,2,0,2">
-                                                <TextBlock Width="90" Text="{Binding Label}" />
-                                                <ProgressBar Minimum="0" Maximum="50" Height="14" Value="{Binding Count}" Margin="8,0,8,0" Width="180" />
-                                                <TextBlock Width="40" Text="{Binding Count}" />
-                                            </DockPanel>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
-                                <TextBlock Margin="0,8,0,0" Text="V1 aggregiert die aktuell geladene Treffermenge clientseitig. Spätere serverseitige Aggregations-Endpunkte können hier ohne UI-Neuschnitt ergänzt werden." TextWrapping="Wrap" />
-                            </StackPanel>
-                        </GroupBox>
-                    </Grid>
-                </TabItem>
-            </TabControl>
         </Grid>
     </DockPanel>
 </Window>

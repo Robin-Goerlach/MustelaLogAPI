@@ -12,14 +12,22 @@ namespace MustelaLog.Client.Wpf.Views;
 /// 
 /// Ein kleiner Teil der UI-spezifischen Logik bleibt bewusst im Code-Behind:
 /// Fensteröffnung, Clipboard, SaveFileDialog und DataGrid-Spaltenzustand sind
-/// eng an WPF gekoppelt und würden in einem strengen MVVM-Modell eher mehr
+/// eng an WPF gekoppelt und würden in einem strengeren MVVM-Modell eher mehr
 /// Komplexität als Klarheit erzeugen.
 /// </summary>
 public partial class MainWindow : Window
 {
+    private static readonly HashSet<string> SupportedServerSortFields = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "occurredAt",
+        "severityNumber",
+        "sourceKey"
+    };
+
     private readonly MainWindowViewModel _viewModel;
     private DiagnosticsWindow? _diagnosticsWindow;
 
+    /// <summary>Erzeugt das Hauptfenster für das bereitgestellte ViewModel.</summary>
     public MainWindow(MainWindowViewModel viewModel)
     {
         InitializeComponent();
@@ -29,6 +37,7 @@ public partial class MainWindow : Window
         Loaded += async (_, _) =>
         {
             WireColumnOptionChanges();
+            ApplyTimeModeSelection();
             ApplyColumnVisibility();
             await _viewModel.InitializeAsync();
         };
@@ -50,53 +59,112 @@ public partial class MainWindow : Window
         }
     }
 
+    private void ApplyTimeModeSelection()
+    {
+        if (FindName("TimeModeComboBox") is ComboBox combo)
+        {
+            combo.SelectedIndex = _viewModel.TimeMode == TimeDisplayMode.Utc ? 1 : 0;
+        }
+    }
+
     private void ApplyColumnVisibility()
     {
-        SetColumnVisibility("occurredAt", OccurredAtColumn);
-        SetColumnVisibility("ingestedAt", IngestedAtColumn);
-        SetColumnVisibility("severity", SeverityColumn);
-        SetColumnVisibility("sourceOrHost", SourceColumn);
-        SetColumnVisibility("service", ServiceColumn);
-        SetColumnVisibility("category", CategoryColumn);
-        SetColumnVisibility("action", ActionColumn);
-        SetColumnVisibility("outcome", OutcomeColumn);
-        SetColumnVisibility("message", MessageColumn);
-        SetColumnVisibility("correlation", CorrelationColumn);
-        SetColumnVisibility("eventId", EventIdColumn);
+        var grid = GetEventsDataGrid();
+        if (grid is null)
+        {
+            return;
+        }
+
+        // Die Spaltenreihenfolge ist in V1 fest. Dadurch können wir die Sichtbarkeit
+        // ohne WPF-spezifische Spalten-Felder zuverlässig über den Index steuern.
+        SetColumnVisibility(grid, 0, "occurredAt");
+        SetColumnVisibility(grid, 1, "ingestedAt");
+        SetColumnVisibility(grid, 2, "severity");
+        SetColumnVisibility(grid, 3, "sourceOrHost");
+        SetColumnVisibility(grid, 4, "service");
+        SetColumnVisibility(grid, 5, "category");
+        SetColumnVisibility(grid, 6, "action");
+        SetColumnVisibility(grid, 7, "outcome");
+        SetColumnVisibility(grid, 8, "message");
+        SetColumnVisibility(grid, 9, "correlation");
+        SetColumnVisibility(grid, 10, "eventId");
     }
 
-    private void SetColumnVisibility(string key, DataGridColumn column)
+    private static void SetColumnVisibility(DataGrid grid, int index, string key)
     {
-        var visible = _viewModel.ColumnOptions.FirstOrDefault(c => c.Key == key)?.IsVisible ?? true;
-        column.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+        if (index < 0 || index >= grid.Columns.Count)
+        {
+            return;
+        }
+
+        if (grid.DataContext is not MainWindowViewModel vm)
+        {
+            return;
+        }
+
+        var visible = vm.ColumnOptions.FirstOrDefault(c => c.Key == key)?.IsVisible ?? true;
+        grid.Columns[index].Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
     }
+
+    private DataGrid? GetEventsDataGrid() => FindName("EventsDataGrid") as DataGrid;
 
     private async void Refresh_Click(object sender, RoutedEventArgs e) => await _viewModel.RefreshAsync();
-    private void ClearFilters_Click(object sender, RoutedEventArgs e) => _viewModel.ClearFilters();
-    private void ApplyQuickRange_Click(object sender, RoutedEventArgs e) => _viewModel.ApplySelectedQuickRange();
+
+    private async void ClearFilters_Click(object sender, RoutedEventArgs e)
+    {
+        _viewModel.ClearFilters();
+        await _viewModel.RefreshAsync();
+    }
+
+    private async void ApplyQuickRange_Click(object sender, RoutedEventArgs e)
+    {
+        _viewModel.ApplySelectedQuickRange();
+        await _viewModel.RefreshAsync();
+    }
+
     private async void PreviousPage_Click(object sender, RoutedEventArgs e) => await _viewModel.LoadPreviousPageAsync();
     private async void NextPage_Click(object sender, RoutedEventArgs e) => await _viewModel.LoadNextPageAsync();
     private void SaveView_Click(object sender, RoutedEventArgs e) => _viewModel.SaveCurrentView();
-    private void LoadView_Click(object sender, RoutedEventArgs e) => _viewModel.LoadSelectedView();
+
+    private async void LoadView_Click(object sender, RoutedEventArgs e)
+    {
+        _viewModel.LoadSelectedView();
+        ApplyColumnVisibility();
+        await _viewModel.RefreshAsync();
+    }
+
     private void RenameView_Click(object sender, RoutedEventArgs e) => _viewModel.RenameSelectedView();
     private void DeleteView_Click(object sender, RoutedEventArgs e) => _viewModel.DeleteSelectedView();
 
-    private void EventsDataGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    private async void EventsDataGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
+        await _viewModel.LoadSelectedEventDetailsAsync();
     }
 
-    private void EventsDataGrid_Sorting(object sender, DataGridSortingEventArgs e)
+    private async void EventsDataGrid_Sorting(object sender, DataGridSortingEventArgs e)
     {
         e.Handled = true;
-        var ascending = e.Column.SortDirection != ListSortDirection.Ascending;
-        foreach (var column in EventsDataGrid.Columns)
+        var sortField = e.Column.SortMemberPath;
+        if (string.IsNullOrWhiteSpace(sortField) || !SupportedServerSortFields.Contains(sortField))
         {
-            column.SortDirection = null;
+            _viewModel.StatusMessage = $"Sorting by '{e.Column.Header}' is not exposed by the V1 API yet.";
+            e.Column.SortDirection = null;
+            return;
+        }
+
+        var ascending = e.Column.SortDirection != ListSortDirection.Ascending;
+
+        if (sender is DataGrid grid)
+        {
+            foreach (var column in grid.Columns)
+            {
+                column.SortDirection = null;
+            }
         }
 
         e.Column.SortDirection = ascending ? ListSortDirection.Ascending : ListSortDirection.Descending;
-        _viewModel.SetSort(e.Column.SortMemberPath, ascending);
-        _ = _viewModel.RefreshAsync();
+        _viewModel.SetSort(sortField, ascending);
+        await _viewModel.RefreshAsync();
     }
 
     private void TimeModeCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -170,6 +238,7 @@ public partial class MainWindow : Window
 
         var vm = new DiagnosticsWindowViewModel(_viewModel.InMemoryLogger);
         _diagnosticsWindow = new DiagnosticsWindow(vm) { Owner = this };
+        _diagnosticsWindow.Closed += (_, _) => _diagnosticsWindow = null;
         _diagnosticsWindow.Show();
     }
 
@@ -191,9 +260,18 @@ public partial class MainWindow : Window
 
     private static void CopyText(string? value)
     {
-        if (!string.IsNullOrWhiteSpace(value))
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return;
+        }
+
+        try
         {
             Clipboard.SetText(value);
+        }
+        catch
+        {
+            // Ein blockiertes Clipboard soll keine Benutzeraktion mit Ausnahme abbrechen.
         }
     }
 }

@@ -9,6 +9,7 @@ public sealed class AsyncRelayCommand : ICommand
     private readonly Func<bool>? _canExecute;
     private bool _isRunning;
 
+    /// <summary>Erzeugt einen asynchronen Befehl für längere UI-Aktionen.</summary>
     public AsyncRelayCommand(Func<Task> executeAsync, Func<bool>? canExecute = null)
     {
         _executeAsync = executeAsync;
@@ -18,6 +19,7 @@ public sealed class AsyncRelayCommand : ICommand
     public event EventHandler? CanExecuteChanged;
     public bool CanExecute(object? parameter) => !_isRunning && (_canExecute?.Invoke() ?? true);
 
+    /// <summary>Führt den asynchronen Befehl aus.</summary>
     public async void Execute(object? parameter)
     {
         if (!CanExecute(parameter))

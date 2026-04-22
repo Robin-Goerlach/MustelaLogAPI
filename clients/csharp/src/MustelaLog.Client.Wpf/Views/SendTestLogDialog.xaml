@@ -18,7 +18,7 @@
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
                 <TextBlock Grid.Row="0" Text="Severity text:" VerticalAlignment="Center" /><TextBox Grid.Row="0" Grid.Column="1" Text="{Binding SeverityText, UpdateSourceTrigger=PropertyChanged}" />
                 <TextBlock Grid.Row="1" Text="Severity number:" VerticalAlignment="Center" /><TextBox Grid.Row="1" Grid.Column="1" Text="{Binding SeverityNumber, UpdateSourceTrigger=PropertyChanged}" />
@@ -31,8 +31,9 @@
                 <TextBlock Grid.Row="8" Text="Correlation ID:" VerticalAlignment="Center" /><TextBox Grid.Row="8" Grid.Column="1" Text="{Binding CorrelationId, UpdateSourceTrigger=PropertyChanged}" />
                 <TextBlock Grid.Row="9" Text="Trace ID:" VerticalAlignment="Center" /><TextBox Grid.Row="9" Grid.Column="1" Text="{Binding TraceId, UpdateSourceTrigger=PropertyChanged}" />
                 <TextBlock Grid.Row="10" Text="Request ID:" VerticalAlignment="Center" /><TextBox Grid.Row="10" Grid.Column="1" Text="{Binding RequestId, UpdateSourceTrigger=PropertyChanged}" />
-                <TextBlock Grid.Row="11" Text="Attributes JSON:" VerticalAlignment="Top" /><TextBox Grid.Row="11" Grid.Column="1" Text="{Binding AttributesJson, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True" VerticalScrollBarVisibility="Auto" FontFamily="Consolas" Height="250" />
-                <TextBlock Grid.Row="12" Grid.ColumnSpan="2" Margin="0,10,0,0" Text="{Binding StatusMessage}" TextWrapping="Wrap" />
+                <TextBlock Grid.Row="11" Grid.ColumnSpan="2" Margin="0,8,0,8" Foreground="#666666" Text="The source is determined by the technical API credentials in V1. This dialog intentionally does not override the source context client-side." TextWrapping="Wrap" />
+                <TextBlock Grid.Row="12" Text="Attributes JSON:" VerticalAlignment="Top" /><TextBox Grid.Row="12" Grid.Column="1" Text="{Binding AttributesJson, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True" VerticalScrollBarVisibility="Auto" FontFamily="Consolas" Height="250" />
+                <TextBlock Grid.Row="13" Grid.ColumnSpan="2" Margin="0,10,0,0" Text="{Binding StatusMessage}" TextWrapping="Wrap" />
             </Grid>
         </ScrollViewer>
     </DockPanel>

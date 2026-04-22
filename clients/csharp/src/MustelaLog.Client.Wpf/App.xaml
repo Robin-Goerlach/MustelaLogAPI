@@ -4,5 +4,6 @@
              xmlns:conv="clr-namespace:MustelaLog.Client.Wpf.Converters">
     <Application.Resources>
         <conv:SeverityBrushConverter x:Key="SeverityBrushConverter" />
+        <conv:StringHasTextToVisibilityConverter x:Key="StringHasTextToVisibilityConverter" />
     </Application.Resources>
 </Application>

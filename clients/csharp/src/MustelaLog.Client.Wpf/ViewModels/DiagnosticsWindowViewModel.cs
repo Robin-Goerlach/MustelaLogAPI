@@ -4,12 +4,20 @@ using MustelaLog.Client.Core.Diagnostics;
 
 namespace MustelaLog.Client.Wpf.ViewModels;
 
-/// <summary>ViewModel des optionalen Diagnosefensters.</summary>
-public sealed class DiagnosticsWindowViewModel : ObservableObject
+/// <summary>
+/// ViewModel des optionalen Diagnosefensters.
+/// 
+/// Das Fenster hängt sich an den In-Memory-Logger und zeigt neue Einträge live an.
+/// Beim Schließen muss die Registrierung wieder entfernt werden, damit keine alten
+/// ViewModels im Speicher hängen bleiben.
+/// </summary>
+public sealed class DiagnosticsWindowViewModel : ObservableObject, IDisposable
 {
     private readonly InMemoryAppLogger _logger;
     private bool _isPaused;
+    private bool _isDisposed;
 
+    /// <summary>Initialisiert das ViewModel mit dem gemeinsamen In-Memory-Logger.</summary>
     public DiagnosticsWindowViewModel(InMemoryAppLogger logger)
     {
         _logger = logger;
@@ -38,9 +46,21 @@ public sealed class DiagnosticsWindowViewModel : ObservableObject
 
     public string PauseButtonText => IsPaused ? "Resume" : "Pause";
 
+    /// <summary>Löst die Logger-Registrierung wieder, damit das Fenster sauber freigegeben wird.</summary>
+    public void Dispose()
+    {
+        if (_isDisposed)
+        {
+            return;
+        }
+
+        _logger.EntryWritten -= HandleEntryWritten;
+        _isDisposed = true;
+    }
+
     private void HandleEntryWritten(object? sender, LogEntry entry)
     {
-        if (IsPaused || Application.Current is null)
+        if (IsPaused || Application.Current is null || _isDisposed)
         {
             return;
         }
@@ -64,6 +84,13 @@ public sealed class DiagnosticsWindowViewModel : ObservableObject
     private void CopyAll()
     {
         var text = string.Join(Environment.NewLine, Entries.Select(e => e.ToSingleLineText()));
-        Clipboard.SetText(text);
+        try
+        {
+            Clipboard.SetText(text);
+        }
+        catch
+        {
+            // Ein blockiertes Clipboard soll die Diagnoseansicht nicht crashen.
+        }
     }
 }

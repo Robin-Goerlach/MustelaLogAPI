@@ -8,6 +8,7 @@ public sealed class RelayCommand : ICommand
     private readonly Action _execute;
     private readonly Func<bool>? _canExecute;
 
+    /// <summary>Erzeugt einen einfachen synchronen Befehl für die WPF-Oberfläche.</summary>
     public RelayCommand(Action execute, Func<bool>? canExecute = null)
     {
         _execute = execute;

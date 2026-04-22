@@ -1,3 +1,4 @@
+using Xunit;
 using MustelaLog.Client.Core.Models;
 using MustelaLog.Client.Core.Services;
 
@@ -66,6 +67,26 @@ public sealed class SavedViewServiceTests : IDisposable
         var loaded = _service.LoadAll();
         Assert.Single(loaded);
         Assert.Equal("Keep", loaded[0].Name);
+    }
+
+    [Fact]
+    public void LoadAll_ReturnsEmptyList_ForMalformedJson()
+    {
+        Directory.CreateDirectory(_tempDirectory);
+        File.WriteAllText(Path.Combine(_tempDirectory, "savedviews.json"), "{ invalid json");
+
+        var loaded = _service.LoadAll();
+
+        Assert.Empty(loaded);
+    }
+
+    [Fact]
+    public void Rename_Throws_ForDuplicateTargetName()
+    {
+        _service.Save(new SavedViewDefinition { Name = "One" });
+        _service.Save(new SavedViewDefinition { Name = "Two" });
+
+        Assert.Throws<InvalidOperationException>(() => _service.Rename("One", "Two"));
     }
 
     public void Dispose()

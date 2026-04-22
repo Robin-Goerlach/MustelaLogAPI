@@ -4,24 +4,36 @@ using MustelaLog.Client.Core.Enums;
 
 namespace MustelaLog.Client.Core.Diagnostics;
 
-/// <summary>Schreibt Diagnosemeldungen in eine rotierende lokale Datei.</summary>
+/// <summary>
+/// Schreibt Diagnosemeldungen in eine rotierende lokale Datei.
+/// 
+/// Schreibfehler werden bewusst geschluckt, weil das Diagnose-Logging den
+/// Client nicht destabilisieren darf.
+/// </summary>
 public sealed class FileAppLogger : IAppLogger
 {
     private readonly object _sync = new();
 
-    public FileAppLogger(string filePath, long maxFileSizeBytes, int maxRetainedFiles)
+    public FileAppLogger(string filePath, long maxFileSizeBytes, int maxRetainedFiles, ClientLogLevel minimumLevel = ClientLogLevel.Trace)
     {
         FilePath = Environment.ExpandEnvironmentVariables(filePath);
         MaxFileSizeBytes = Math.Max(128 * 1024, maxFileSizeBytes);
         MaxRetainedFiles = Math.Max(1, maxRetainedFiles);
+        MinimumLevel = minimumLevel;
     }
 
     public string FilePath { get; }
     public long MaxFileSizeBytes { get; }
     public int MaxRetainedFiles { get; }
+    public ClientLogLevel MinimumLevel { get; }
 
     public void Log(ClientLogLevel level, string message, Exception? exception = null, IReadOnlyDictionary<string, object?>? context = null)
     {
+        if (level > MinimumLevel)
+        {
+            return;
+        }
+
         try
         {
             var entry = new LogEntry
@@ -65,6 +77,7 @@ public sealed class FileAppLogger : IAppLogger
         {
             return;
         }
+
         var info = new FileInfo(FilePath);
         if (info.Length < MaxFileSizeBytes)
         {

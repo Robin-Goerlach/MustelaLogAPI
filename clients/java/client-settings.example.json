@@ -1,0 +1,25 @@
+{
+  "api": {
+    "baseUrl": "https://example.org/index.php",
+    "routeParameterName": "route",
+    "apiVersionPath": "/api/v1",
+    "technicalAccessToken": "replace-me",
+    "timeoutSeconds": 20,
+    "defaultPageSize": 50
+  },
+  "ui": {
+    "defaultTimeMode": "LOCAL",
+    "autoRefreshEnabled": false,
+    "autoRefreshSeconds": 30,
+    "defaultWindowWidth": 1600,
+    "defaultWindowHeight": 950
+  },
+  "diagnostics": {
+    "enabled": true,
+    "minimumLevel": "INFORMATION",
+    "logFilePath": "${user.home}/.mustelalog-client/logs/client.log",
+    "maxFileSizeBytes": 1048576,
+    "maxRetainedFiles": 5,
+    "inMemoryBufferSize": 500
+  }
+}

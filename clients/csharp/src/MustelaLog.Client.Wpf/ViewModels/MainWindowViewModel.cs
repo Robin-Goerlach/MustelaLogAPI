@@ -42,6 +42,9 @@ public sealed class MainWindowViewModel : ObservableObject
     private string _selectedSavedViewName = string.Empty;
     private string _savedViewEditName = string.Empty;
     private string _relatedEventsTitle = "No related events loaded.";
+    private string _localFilteringNotice = string.Empty;
+    private int _currentPageVisibleRowCount;
+    private int _timeAggregationMaxCount = 1;
 
     private DateTime? _fromDateLocal;
     private DateTime? _toDateLocal;
@@ -67,6 +70,7 @@ public sealed class MainWindowViewModel : ObservableObject
     private bool _onlyWithCorrelation;
     private bool _onlyWithActor;
 
+    /// <summary>Erzeugt das zentrale ViewModel des Hauptfensters.</summary>
     public MainWindowViewModel(
         ClientSettings settings,
         ILogApiClient apiClient,
@@ -173,7 +177,9 @@ public sealed class MainWindowViewModel : ObservableObject
     }
 
     public bool HasNextPage => CurrentPage * PageSize < TotalCount;
-    public string PageSummary => $"Page {CurrentPage} · {EventRows.Count} rows loaded · total {TotalCount}";
+    public string PageSummary => string.IsNullOrWhiteSpace(LocalFilteringNotice)
+        ? $"Page {CurrentPage} · {CurrentPageVisibleRowCount} rows loaded · total {TotalCount}"
+        : $"Page {CurrentPage} · {CurrentPageVisibleRowCount} visible rows after local refinement · server total {TotalCount}";
     public string SortField { get => _sortField; private set => SetProperty(ref _sortField, value); }
     public bool SortAscending { get => _sortAscending; private set => SetProperty(ref _sortAscending, value); }
 
@@ -222,6 +228,8 @@ public sealed class MainWindowViewModel : ObservableObject
                 OnPropertyChanged(nameof(SelectedEventPrettyAttributes));
                 OnPropertyChanged(nameof(SelectedEventPrettyPayload));
                 OnPropertyChanged(nameof(SelectedSourceVersion));
+                OnPropertyChanged(nameof(SelectedSourceVersionAndEnvironment));
+                OnPropertyChanged(nameof(SelectedIntegritySummary));
             }
         }
     }
@@ -238,6 +246,9 @@ public sealed class MainWindowViewModel : ObservableObject
                 SelectedEventSource = ResolveSourceForSelectedEvent();
                 OnPropertyChanged(nameof(SelectedEventPrettyAttributes));
                 OnPropertyChanged(nameof(SelectedEventPrettyPayload));
+                OnPropertyChanged(nameof(SelectedCategoryActionOutcome));
+                OnPropertyChanged(nameof(SelectedSourceVersionAndEnvironment));
+                OnPropertyChanged(nameof(SelectedIntegritySummary));
             }
         }
     }
@@ -250,6 +261,8 @@ public sealed class MainWindowViewModel : ObservableObject
             if (SetProperty(ref _selectedEventSource, value))
             {
                 OnPropertyChanged(nameof(SelectedSourceVersion));
+                OnPropertyChanged(nameof(SelectedSourceVersionAndEnvironment));
+                OnPropertyChanged(nameof(SelectedIntegritySummary));
             }
         }
     }
@@ -260,18 +273,59 @@ public sealed class MainWindowViewModel : ObservableObject
     public string SelectedSavedViewName { get => _selectedSavedViewName; set => SetProperty(ref _selectedSavedViewName, value); }
     public string SavedViewEditName { get => _savedViewEditName; set => SetProperty(ref _savedViewEditName, value); }
     public string RelatedEventsTitle { get => _relatedEventsTitle; set => SetProperty(ref _relatedEventsTitle, value); }
+    public string LocalFilteringNotice
+    {
+        get => _localFilteringNotice;
+        private set
+        {
+            if (SetProperty(ref _localFilteringNotice, value))
+            {
+                OnPropertyChanged(nameof(PageSummary));
+            }
+        }
+    }
+    public int CurrentPageVisibleRowCount
+    {
+        get => _currentPageVisibleRowCount;
+        private set
+        {
+            if (SetProperty(ref _currentPageVisibleRowCount, value))
+            {
+                OnPropertyChanged(nameof(PageSummary));
+            }
+        }
+    }
+
+    public int TimeAggregationMaxCount
+    {
+        get => _timeAggregationMaxCount;
+        private set => SetProperty(ref _timeAggregationMaxCount, Math.Max(1, value));
+    }
+
+    public string SelectedCategoryActionOutcome => SelectedEvent is null
+        ? string.Empty
+        : $"{SelectedEvent.Record.EventCategory ?? "-"} / {SelectedEvent.Record.EventAction ?? "-"} / {SelectedEvent.Record.EventOutcome ?? "-"}";
+
+    public string SelectedSourceVersionAndEnvironment
+        => $"{SelectedEventSource?.VersionText ?? "-"} / {SelectedEventSource?.EnvironmentCode ?? SelectedEvent?.Record.EnvironmentCode ?? "-"}";
+
+    public string SelectedIntegritySummary => SelectedEvent is null
+        ? string.Empty
+        : $"Canonical: {SelectedEvent.Record.CanonicalHashSha256 ?? "-"}\nPrevious: {SelectedEvent.Record.PreviousHashSha256 ?? "-"}\nSignature: {SelectedEvent.Record.SignatureAlgorithm ?? "-"} / {SelectedEvent.Record.SourceSignature ?? "-"}";
 
     public InMemoryAppLogger InMemoryLogger => _inMemoryLogger;
     public ILogApiClient ApiClient => _apiClient;
     public IAppLogger Logger => _logger;
     public IReadOnlyList<SourceRecord> SourceSnapshot => Sources.ToList();
 
+    /// <summary>Initialisiert das Hauptfenster mit Standardzeitraum und erster Datenladung.</summary>
     public async Task InitializeAsync()
     {
         ApplySelectedQuickRange();
         await RefreshAsync();
     }
 
+    /// <summary>Lädt die aktuelle Eventseite mit dem aktuellen Filterzustand neu.</summary>
     public async Task RefreshAsync()
     {
         if (IsBusy)
@@ -287,32 +341,61 @@ public sealed class MainWindowViewModel : ObservableObject
         {
             if (Sources.Count == 0)
             {
-                await LoadSourcesAsync();
+                try
+                {
+                    await LoadSourcesAsync();
+                }
+                catch (Exception sourceException)
+                {
+                    _logger.Warning("Loading source list failed. Event loading continues without source metadata.", new Dictionary<string, object?>
+                    {
+                        ["error"] = sourceException.Message
+                    });
+                }
             }
 
             var filter = BuildFilter();
             UpdateFilterChips(filter);
+            var hasClientSideRefinements = HasClientSideOnlyFilters(filter);
+            LocalFilteringNotice = hasClientSideRefinements
+                ? "Some active filters are currently applied only to the loaded page because the V1 API does not expose all filter fields server-side."
+                : string.Empty;
 
             var result = await _apiClient.GetEventsAsync(filter, CurrentPage, PageSize, SortField, SortAscending, CancellationToken.None);
+            if (result.Items.Count == 0 && result.Total > 0 && CurrentPage > 1)
+            {
+                CurrentPage = Math.Max(1, (int)Math.Ceiling(result.Total / (double)PageSize));
+                result = await _apiClient.GetEventsAsync(filter, CurrentPage, PageSize, SortField, SortAscending, CancellationToken.None);
+            }
+
             var refinedItems = ApplyClientSideRefinements(result.Items, filter);
 
             EventRows.Clear();
+            SelectedEvent = null;
+            SelectedEventSource = null;
+            RelatedEventRows.Clear();
+            RelatedEventsTitle = "No related events loaded.";
             foreach (var item in refinedItems)
             {
                 EventRows.Add(new LogEventRowViewModel(item, _timeDisplayService, TimeMode));
             }
 
+            CurrentPageVisibleRowCount = EventRows.Count;
             TotalCount = result.Total;
             BuildAggregations(refinedItems);
             ConnectionStatus = "Connected";
-            StatusMessage = $"Loaded {EventRows.Count} events.";
+            StatusMessage = hasClientSideRefinements
+                ? $"Loaded {EventRows.Count} visible events on the current page. Additional local refinement is active."
+                : $"Loaded {EventRows.Count} events.";
             LastRefreshText = DateTimeOffset.Now.ToString("yyyy-MM-dd HH:mm:ss");
             LastResponseText = $"{(DateTimeOffset.UtcNow - started).TotalMilliseconds:N0} ms";
+            OnPropertyChanged(nameof(PageSummary));
         }
         catch (Exception exception)
         {
             ConnectionStatus = "Error";
             StatusMessage = "Loading events failed.";
+            CurrentPageVisibleRowCount = 0;
             _logger.Error("Refreshing events failed", exception);
         }
         finally
@@ -321,6 +404,7 @@ public sealed class MainWindowViewModel : ObservableObject
         }
     }
 
+    /// <summary>Lädt die vorherige Seite der Eventliste.</summary>
     public async Task LoadPreviousPageAsync()
     {
         if (CurrentPage <= 1)
@@ -332,6 +416,7 @@ public sealed class MainWindowViewModel : ObservableObject
         await RefreshAsync();
     }
 
+    /// <summary>Lädt die nächste Seite der Eventliste.</summary>
     public async Task LoadNextPageAsync()
     {
         if (!HasNextPage)
@@ -343,6 +428,7 @@ public sealed class MainWindowViewModel : ObservableObject
         await RefreshAsync();
     }
 
+    /// <summary>Setzt alle Filter auf ihren leeren Zustand zurück.</summary>
     public void ClearFilters()
     {
         FromDateLocal = null;
@@ -368,59 +454,63 @@ public sealed class MainWindowViewModel : ObservableObject
         OnlyWithCorrelation = false;
         OnlyWithActor = false;
         SelectedQuickRange = null;
+        CurrentPage = 1;
+        RelatedEventRows.Clear();
+        RelatedEventsTitle = "No related events loaded.";
+        LocalFilteringNotice = string.Empty;
         ActiveFilterChips.Clear();
+        BuildAggregations(Array.Empty<LogEventRecord>());
     }
 
+    /// <summary>Überträgt den ausgewählten Schnellzeitraum in die Filterfelder.</summary>
     public void ApplySelectedQuickRange()
     {
         var now = DateTime.Now;
         switch (SelectedQuickRange)
         {
             case "Last 5 minutes":
-                FromDateLocal = now.AddMinutes(-5);
-                ToDateLocal = now;
-                break;
             case "Last 15 minutes":
-                FromDateLocal = now.AddMinutes(-15);
-                ToDateLocal = now;
-                break;
             case "Last hour":
-                FromDateLocal = now.AddHours(-1);
-                ToDateLocal = now;
-                break;
             case "Today":
                 FromDateLocal = DateTime.Today;
-                ToDateLocal = now;
+                ToDateLocal = now.Date;
                 break;
             case "Last 24 hours":
-                FromDateLocal = now.AddHours(-24);
-                ToDateLocal = now;
+                FromDateLocal = now.AddHours(-24).Date;
+                ToDateLocal = now.Date;
                 break;
             case "Last 7 days":
-                FromDateLocal = now.AddDays(-7);
-                ToDateLocal = now;
+                FromDateLocal = now.AddDays(-7).Date;
+                ToDateLocal = now.Date;
                 break;
         }
+
+        CurrentPage = 1;
     }
 
+    /// <summary>Setzt das aktuell aktive serverseitige Sortierkriterium.</summary>
     public void SetSort(string sortField, bool ascending)
     {
-        SortField = sortField;
+        SortField = string.IsNullOrWhiteSpace(sortField) ? "occurredAt" : sortField;
         SortAscending = ascending;
+        CurrentPage = 1;
     }
 
+    /// <summary>Exportiert die aktuell geladene Eventmenge als CSV-Datei.</summary>
     public async Task ExportCsvAsync(string filePath)
     {
         await _exportService.ExportCsvAsync(filePath, EventRows.Select(e => e.Record));
         _logger.Information("CSV export completed", new Dictionary<string, object?> { ["filePath"] = filePath, ["count"] = EventRows.Count });
     }
 
+    /// <summary>Exportiert die aktuell geladene Eventmenge als JSON-Datei.</summary>
     public async Task ExportJsonAsync(string filePath)
     {
         await _exportService.ExportJsonAsync(filePath, EventRows.Select(e => e.Record));
         _logger.Information("JSON export completed", new Dictionary<string, object?> { ["filePath"] = filePath, ["count"] = EventRows.Count });
     }
 
+    /// <summary>Lädt zusammengehörige Events für das aktuell selektierte Event.</summary>
     public async Task LoadRelatedEventsAsync(string mode)
     {
         if (SelectedEvent is null)
@@ -478,6 +568,7 @@ public sealed class MainWindowViewModel : ObservableObject
         }
     }
 
+    /// <summary>Speichert den aktuellen Filter- und Spaltenzustand lokal als Saved View.</summary>
     public void SaveCurrentView()
     {
         if (string.IsNullOrWhiteSpace(SavedViewEditName))
@@ -501,6 +592,7 @@ public sealed class MainWindowViewModel : ObservableObject
         StatusMessage = $"Saved view '{definition.Name}' stored.";
     }
 
+    /// <summary>Lädt eine lokal gespeicherte Ansicht in den aktuellen UI-Zustand.</summary>
     public void LoadSelectedView()
     {
         var selected = SavedViews.FirstOrDefault(v => string.Equals(v.Name, SelectedSavedViewName, StringComparison.OrdinalIgnoreCase));
@@ -515,9 +607,12 @@ public sealed class MainWindowViewModel : ObservableObject
         SortAscending = selected.SortAscending;
         SavedViewEditName = selected.Name;
         ApplyVisibleColumns(selected.VisibleColumns);
+        CurrentPage = 1;
+        UpdateFilterChips(BuildFilter());
         StatusMessage = $"Loaded saved view '{selected.Name}'.";
     }
 
+    /// <summary>Löscht die aktuell ausgewählte Saved View.</summary>
     public void DeleteSelectedView()
     {
         if (string.IsNullOrWhiteSpace(SelectedSavedViewName))
@@ -528,9 +623,11 @@ public sealed class MainWindowViewModel : ObservableObject
 
         _savedViewService.Delete(SelectedSavedViewName);
         LoadSavedViews();
+        SelectedSavedViewName = string.Empty;
         StatusMessage = "Saved view deleted.";
     }
 
+    /// <summary>Benennet die aktuell ausgewählte Saved View um.</summary>
     public void RenameSelectedView()
     {
         if (string.IsNullOrWhiteSpace(SelectedSavedViewName) || string.IsNullOrWhiteSpace(SavedViewEditName))
@@ -539,10 +636,18 @@ public sealed class MainWindowViewModel : ObservableObject
             return;
         }
 
-        _savedViewService.Rename(SelectedSavedViewName, SavedViewEditName.Trim());
-        LoadSavedViews();
-        SelectedSavedViewName = SavedViewEditName.Trim();
-        StatusMessage = "Saved view renamed.";
+        try
+        {
+            _savedViewService.Rename(SelectedSavedViewName, SavedViewEditName.Trim());
+            LoadSavedViews();
+            SelectedSavedViewName = SavedViewEditName.Trim();
+            StatusMessage = "Saved view renamed.";
+        }
+        catch (Exception exception)
+        {
+            StatusMessage = exception.Message;
+            _logger.Warning("Renaming saved view failed", new Dictionary<string, object?> { ["error"] = exception.Message });
+        }
     }
 
     private async Task LoadSourcesAsync()
@@ -559,8 +664,8 @@ public sealed class MainWindowViewModel : ObservableObject
     {
         return new LogQueryFilter
         {
-            FromUtc = _timeDisplayService.ToUtc(FromDateLocal),
-            ToUtc = _timeDisplayService.ToUtc(ToDateLocal),
+            FromUtc = _timeDisplayService.ToUtcStartOfDay(FromDateLocal),
+            ToUtc = _timeDisplayService.ToUtcEndOfDay(ToDateLocal),
             SourceKey = NullIfWhite(SourceKeyFilter),
             Hostname = NullIfWhite(HostnameFilter),
             Service = NullIfWhite(ServiceFilter),
@@ -646,7 +751,9 @@ public sealed class MainWindowViewModel : ObservableObject
         ReplaceCollection(ServiceAggregation, _aggregationService.CountByService(items).Take(10));
         ReplaceCollection(CategoryAggregation, _aggregationService.CountByCategory(items).Take(10));
         ReplaceCollection(OutcomeAggregation, _aggregationService.CountByOutcome(items).Take(10));
-        ReplaceCollection(TimeAggregation, _aggregationService.CountOverTime(items));
+        var timeBuckets = _aggregationService.CountOverTime(items).ToList();
+        ReplaceCollection(TimeAggregation, timeBuckets);
+        TimeAggregationMaxCount = timeBuckets.Count == 0 ? 1 : timeBuckets.Max(bucket => bucket.Count);
     }
 
     private void ReplaceCollection<T>(ObservableCollection<T> target, IEnumerable<T> source)
@@ -660,13 +767,14 @@ public sealed class MainWindowViewModel : ObservableObject
 
     private SourceRecord? ResolveSourceForSelectedEvent()
     {
-        if (SelectedEvent?.Record.SourceId is null)
+        var record = SelectedEvent?.Record;
+        if (record is null)
         {
             return null;
         }
 
-        return Sources.FirstOrDefault(s => string.Equals(s.SourceId, SelectedEvent.Record.SourceId, StringComparison.OrdinalIgnoreCase))
-            ?? Sources.FirstOrDefault(s => string.Equals(s.SourceKey, SelectedEvent.Record.SourceKey, StringComparison.OrdinalIgnoreCase));
+        return Sources.FirstOrDefault(s => !string.IsNullOrWhiteSpace(record.SourceId) && string.Equals(s.SourceId, record.SourceId, StringComparison.OrdinalIgnoreCase))
+            ?? Sources.FirstOrDefault(s => !string.IsNullOrWhiteSpace(record.SourceKey) && string.Equals(s.SourceKey, record.SourceKey, StringComparison.OrdinalIgnoreCase));
     }
 
     private void LoadSavedViews()
@@ -702,6 +810,7 @@ public sealed class MainWindowViewModel : ObservableObject
         OnlyWithPayload = filter.OnlyWithPayload;
         OnlyWithCorrelation = filter.OnlyWithCorrelation;
         OnlyWithActor = filter.OnlyWithActor;
+        CurrentPage = 1;
     }
 
     private void ApplyVisibleColumns(IEnumerable<string> visibleColumnKeys)
@@ -710,6 +819,63 @@ public sealed class MainWindowViewModel : ObservableObject
         foreach (var option in ColumnOptions)
         {
             option.IsVisible = set.Contains(option.Key);
+        }
+    }
+
+
+    private bool HasClientSideOnlyFilters(LogQueryFilter filter)
+    {
+        return !string.IsNullOrWhiteSpace(filter.Hostname)
+            || !string.IsNullOrWhiteSpace(filter.Service)
+            || !string.IsNullOrWhiteSpace(filter.EventCategory)
+            || !string.IsNullOrWhiteSpace(filter.EventAction)
+            || !string.IsNullOrWhiteSpace(filter.EventOutcome)
+            || !string.IsNullOrWhiteSpace(filter.TextSearch)
+            || !string.IsNullOrWhiteSpace(filter.RequestId)
+            || !string.IsNullOrWhiteSpace(filter.Component)
+            || !string.IsNullOrWhiteSpace(filter.ActorUserId)
+            || !string.IsNullOrWhiteSpace(filter.ActorPrincipal)
+            || !string.IsNullOrWhiteSpace(filter.SessionHash)
+            || !string.IsNullOrWhiteSpace(filter.ClientIp)
+            || !string.IsNullOrWhiteSpace(filter.ServerIp)
+            || filter.OnlyWithPayload
+            || filter.OnlyWithCorrelation
+            || filter.OnlyWithActor;
+    }
+
+    /// <summary>Lädt bei Bedarf den vollständigen Detaildatensatz für das selektierte Event nach.</summary>
+    public async Task LoadSelectedEventDetailsAsync()
+    {
+        if (SelectedEvent?.Record.LogEventId is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var detailed = await _apiClient.GetEventByIdAsync(SelectedEvent.Record.LogEventId, CancellationToken.None);
+            if (detailed is null)
+            {
+                return;
+            }
+
+            var replacement = new LogEventRowViewModel(detailed, _timeDisplayService, TimeMode);
+            var index = EventRows.IndexOf(SelectedEvent);
+            if (index >= 0)
+            {
+                EventRows[index] = replacement;
+            }
+
+            SelectedEvent = replacement;
+            CurrentPageVisibleRowCount = EventRows.Count;
+        }
+        catch (Exception exception)
+        {
+            _logger.Warning("Loading event detail failed. The list row remains visible, but the detail pane may be incomplete.", new Dictionary<string, object?>
+            {
+                ["eventId"] = SelectedEvent?.Record.LogEventId,
+                ["error"] = exception.Message
+            });
         }
     }
 

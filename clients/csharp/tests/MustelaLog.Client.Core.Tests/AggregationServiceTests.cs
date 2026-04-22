@@ -1,3 +1,4 @@
+using Xunit;
 using MustelaLog.Client.Core.Models;
 using MustelaLog.Client.Core.Services;
 

@@ -8,6 +8,7 @@ public partial class SendTestLogDialog : Window
 {
     private readonly SendTestLogDialogViewModel _viewModel;
 
+    /// <summary>Erzeugt den Dialog für den Versand manueller Testevents.</summary>
     public SendTestLogDialog(SendTestLogDialogViewModel viewModel)
     {
         InitializeComponent();

@@ -1,3 +1,4 @@
+using Xunit;
 using MustelaLog.Client.Core.Diagnostics;
 
 namespace MustelaLog.Client.Core.Tests;

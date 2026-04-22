@@ -10,6 +10,7 @@ public sealed class LogEventRowViewModel : ObservableObject
     private readonly TimeDisplayService _timeDisplayService;
     private TimeDisplayMode _timeMode;
 
+    /// <summary>Erzeugt eine UI-freundliche Zeilenprojektion für ein Event.</summary>
     public LogEventRowViewModel(LogEventRecord record, TimeDisplayService timeDisplayService, TimeDisplayMode timeMode)
     {
         Record = record;
@@ -32,6 +33,7 @@ public sealed class LogEventRowViewModel : ObservableObject
     public string ObservedAtDisplay => _timeDisplayService.FormatApiTime(Record.ObservedAt, _timeMode);
     public string ReceivedAtDisplay => _timeDisplayService.FormatApiTime(Record.ReceivedAt, _timeMode);
 
+    /// <summary>Aktualisiert die Zeitdarstellung der Zeile auf UTC oder Lokalzeit.</summary>
     public void SetTimeMode(TimeDisplayMode timeMode)
     {
         _timeMode = timeMode;

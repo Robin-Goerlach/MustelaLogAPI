@@ -6,7 +6,7 @@ namespace MustelaLog.Client.Core.Configuration;
 public sealed class ApiSettings
 {
     /// <summary>Basis-URL des Front Controllers inklusive <c>index.php</c>.</summary>
-    public string BaseUrl { get; set; } = "http://127.0.0.1:8080/index.php";
+    public string BaseUrl { get; set; } = "http://api.sasd.de/logger/index.php";
 
     /// <summary>Fachliche API-Version im Route-Pfad.</summary>
     public string ApiVersion { get; set; } = "v1";

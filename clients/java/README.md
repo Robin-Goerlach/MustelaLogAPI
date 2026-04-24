@@ -1,60 +1,88 @@
-# MustelaLog Swing Client V1
+# Mustralla LogAPI Java Client
 
-Ein bewusst einfach gehaltener, aber professionell strukturierter Java-17-Swing-Client für die MustelaLogAPI.
+Dieser Java-Client wurde neu auf das sichtbare MustelaLogAPI-Server-Interface ausgerichtet.
 
-## Ziel von V1
+## Ziel
 
-Der Client deckt den fachlichen Kern ab:
+Der Client erfüllt insbesondere diese Server-Vertragsregeln:
 
-- Log-Tabelle mit Sortierung und Paging
-- Filterbereich mit aktiven Filtern
-- Detailansicht des selektierten Events
-- Related Events / Korrelationssicht
-- einfache clientseitige Aggregationen
-- Test-Log über die API senden
-- CSV- und JSON-Export der aktuell angezeigten Datensätze
-- lokales Diagnose-Logging mit Dateilog und Live-Fenster
-- vorbereitete Credential-Schicht für spätere Benutzeranmeldung
+- getrennte Bearer-Tokens für lesende und schreibende Zugriffe
+- Routing über `index.php?route=/api/v1/...`
+- korrektes Lesen des `data`-Envelopes in Serverantworten
+- getrennte Behandlung von `GET /events`, `GET /events/{eventId}`, `GET /sources` und `POST /ingest/events`
+- Ingest-Nutzdaten mit `occurredAt`, `observedAt`, `severityNumber`, `severityText` und `message`
+- saubere Fehlerauswertung von HTTP-Status, `error.code`, `error.message` und `requestId`
 
-## Technische Entscheidungen
+## Projektaufbau
 
-- **Java 17**
-- **Swing** für die Desktop-Oberfläche
-- **java.net.http.HttpClient** für die API-Kommunikation
-- **keine externen Laufzeitbibliotheken** für JSON; stattdessen eine kleine interne JSON-Hilfe
-- **Maven** als Build-Werkzeug
+- `src/main/java` - Anwendungscode
+- `src/test/java` - kleine, dependency-freie Selbsttests
+- `client-settings.example.json` - Beispielkonfiguration
+- `scripts/build.sh` - Kompilierung mit `javac`
+- `scripts/run.sh` - Start der Swing-Anwendung
+- `scripts/test.sh` - Ausführung der Selbsttests
 
-## Start
+## Voraussetzungen
+
+- Java 17 oder neuer
+- Zugriff auf den MustelaLogAPI-Server
+- ein Reader-Token für `GET /api/v1/events` und `GET /api/v1/sources`
+- ein Source-Token für `POST /api/v1/ingest/events`
+
+## Konfiguration
 
 1. `client-settings.example.json` nach `client-settings.json` kopieren
-2. Base URL und Token eintragen
-3. bauen und starten:
+2. diese Werte anpassen:
+   - `api.baseUrl`
+   - `api.routeParameterName`
+   - `api.apiVersionPath`
+   - `api.readBearerToken`
+   - `api.ingestBearerToken`
+   - `diagnostics.logFilePath`
+3. Anwendung starten
+
+## Bauen und Starten
+
+### Mit den mitgelieferten Shell-Skripten
 
 ```bash
-mvn test
-mvn exec:java
+chmod +x scripts/build.sh scripts/run.sh scripts/test.sh
+./scripts/build.sh
+./scripts/test.sh
+./scripts/run.sh
 ```
 
-## Wichtige Konfigurationswerte
+### Direkt mit javac
 
-- `api.baseUrl`: z. B. `https://example.org/index.php`
-- `api.routeParameterName`: standardmäßig `route`
-- `api.apiVersionPath`: z. B. `/api/v1`
-- `api.technicalAccessToken`: technischer Token für V1
-- `diagnostics.logFilePath`: lokaler Pfad für das Client-Diagnoselog
+```bash
+mkdir -p out/main
+find src/main/java -name "*.java" | sort | xargs javac -encoding UTF-8 -d out/main
+java -cp out/main de.sasd.mustelalog.client.app.MustelaLogClientApplication client-settings.json
+```
 
-## Hinweise zu Filterung und API-Grenzen
+## Hinweise zur Bedienung
 
-Die MustelaLogAPI unterstützt in der hier bekannten Fassung nur einen Teil der Filter serverseitig. Der Client kennzeichnet deshalb offen, wenn zusätzliche Filter nur lokal auf der aktuell geladenen Seite angewendet werden.
+- **Health** prüft `GET /api/v1/health`
+- **Events laden** ruft `GET /api/v1/events` mit den serverseitig unterstützten Filtern auf
+- **Quellen laden** ruft `GET /api/v1/sources` auf
+- **Test-Log senden** ruft `POST /api/v1/ingest/events` mit einem gültigen Source-Token auf
+- **CSV/JSON exportieren** schreibt die aktuell geladene Seite lokal weg
+- **Diagnosefenster** zeigt das lokale Client-Logging live an
 
-## Tests
+## Wichtige Architekturentscheidung
 
-Im Projekt sind einfache Unit-Tests für gut isolierbare Kernlogik enthalten:
+Der Client versucht **nicht**, den Serververtrag umzudefinieren. Stattdessen ist er an den sichtbaren Vertrag des Servers angepasst:
 
-- Zeitdarstellung
-- Saved Views
-- Aggregationen
-- Export
-- Log-Sanitizing
+- Read-Antworten werden aus `data` gelesen
+- `events.read` und `sources.read` verwenden das Reader-Token
+- `events.ingest` verwendet das Ingest-Token
+- Test-Logs enthalten die vom Servervalidator verlangten Pflichtfelder
 
-UI-spezifische Funktionen wie Tabellen-Rendering, Dialog-Interaktion oder Fensterverhalten sind in V1 vor allem manuell zu prüfen.
+## Selbsttests
+
+Die Selbsttests decken keine GUI-Interaktion ab. Sie prüfen aber zentrale, isolierbare Logik:
+
+- JSON Parser / Writer
+- Zeitnormalisierung für Serverabfragen
+- CSV-Export
+- Konfigurationsladen

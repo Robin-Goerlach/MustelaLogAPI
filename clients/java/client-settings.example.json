@@ -1,25 +1,26 @@
 {
   "api": {
-    "baseUrl": "https://example.org/index.php",
+    "baseUrl": "https://example.com/index.php",
     "routeParameterName": "route",
     "apiVersionPath": "/api/v1",
-    "technicalAccessToken": "replace-me",
+    "readBearerToken": "reader-token-here",
+    "ingestBearerToken": "source-token-here",
     "timeoutSeconds": 20,
-    "defaultPageSize": 50
-  },
-  "ui": {
-    "defaultTimeMode": "LOCAL",
-    "autoRefreshEnabled": false,
-    "autoRefreshSeconds": 30,
-    "defaultWindowWidth": 1600,
-    "defaultWindowHeight": 950
+    "defaultPageSize": 50,
+    "healthOnStartup": true
   },
   "diagnostics": {
-    "enabled": true,
-    "minimumLevel": "INFORMATION",
-    "logFilePath": "${user.home}/.mustelalog-client/logs/client.log",
-    "maxFileSizeBytes": 1048576,
-    "maxRetainedFiles": 5,
-    "inMemoryBufferSize": 500
+    "logFilePath": "logs/mustralla-java-client.log",
+    "maxEntriesInMemory": 1000
+  },
+  "export": {
+    "defaultDirectory": "exports"
+  },
+  "ui": {
+    "lookAndFeelSystem": true,
+    "windowWidth": 1440,
+    "windowHeight": 900,
+    "autoLoadSourcesOnStartup": true,
+    "autoLoadEventsOnStartup": true
   }
 }
